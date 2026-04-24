@@ -45,7 +45,7 @@ def check_mount_status():
     return
 
 def delete_trash():
-    plex_url = ""
+    plex_url = "No Set"
 
     try:
         check_mount_status()
@@ -54,8 +54,12 @@ def delete_trash():
 
         # Empty trash for every library section
         for section in plex.library.sections():
-            print(f"Emptying trash for library: {section.title}")
-            section.emptyTrash()
+            if not section.refreshing and section.updatedAt <= dt.datetime.now() - dt.timedelta(minutes=5):
+                print(f"Emptying trash for library: {section.title}")
+                section.emptyTrash()
+            else:
+                print(f"Library is being scanned: {section.title}")
+        print(f"Finished: {plex_url}")
 
     except subprocess.CalledProcessError as e:
         print(dt.datetime.now().time(), "CalledProcessError Unable to get status of Media Mount " + plex_url + " " + str(e))
