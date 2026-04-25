@@ -35,28 +35,16 @@ def get_plex_token():
     else:
         raise Exception("Usage: python plex-delete-trash.py plex_url, plex_token sytemctl-mount-name")
 
-def check_mount_status():
-    service_name = ""
+def check_section_status(plex, section):
     try:
-        if len(sys.argv) == 1:
-            service_name = os.environ.get('SYSTEM_MOUNT_NAME')
-        elif len(sys.argv) == 4:
-            service_name = sys.argv[3]
-        if service_name:
-            state = get_service_status(service_name)
-            if state != "active":
-                raise Exception("check_mount_status: " + service_name + " is not active")
-    except subprocess.CalledProcessError as e:
-        raise Exception("check_mount_status: " + str(service_name) + " is not active " + str(e))
+       plex.library.section(section.title)
     except Exception as e:
-        raise Exception("check_mount_status: " + str(service_name) + " is not active " + str(e))
-    return
+        raise Exception("PlexURL section " + str(section.title) + "does not exist:" + str(e))
 
 def delete_trash():
     plex_url = "No Set"
 
     try:
-        check_mount_status()
 
         plex_url = get_plex_url()
         if not plex_url:
@@ -66,12 +54,13 @@ def delete_trash():
         if not plex_token:
             raise Exception("plex_token not set");
 
-        plex = PlexServer(plex_url, plex_token)
+        plex = PlexServer(plex_url, plex_token, timeout=5)
 
         # Empty trash for every library section
         for section in plex.library.sections():
             if not section.refreshing and section.updatedAt <= dt.datetime.now() - dt.timedelta(minutes=5):
                 print(f"Emptying trash for library: {section.title}")
+                check_section_status(plex, section)
                 section.emptyTrash()
             else:
                 print(f"Library is being scanned: {section.title}")
