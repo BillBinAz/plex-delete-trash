@@ -20,6 +20,5 @@ COPY cron-job /etc/crontabs/root
 
 # start script
 COPY entrypoint.sh .
-
-# Set the script to run on container startup
+RUN chmod +x /app/entrypoint.sh
 ENTRYPOINT ["/app/entrypoint.sh"]
