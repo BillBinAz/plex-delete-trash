@@ -1,0 +1,10 @@
+services:
+  plex-delete-trash:
+    container_name: plex-delete-trash
+    image: plex-delete-trash:latest
+    restart: unless-stopped
+    environment:
+      - PLEX_TOKEN=7gYQs5NMuJGEq4vXGhyV
+      - PLEX_URL=https://plex.evilminions.org:32400
+    labels:
+      - diun.enable=true

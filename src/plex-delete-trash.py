@@ -1,3 +1,4 @@
+import os
 import sys
 import subprocess
 import datetime as dt
@@ -18,14 +19,18 @@ def get_service_status(name):
 
 def get_plex_url():
     # Access individual arguments (with error checking)
-    if len(sys.argv) > 2:
+    if len(sys.argv) == 1:
+        return  os.environ.get('PLEX_URL')
+    elif len(sys.argv) > 2:
         return sys.argv[1]
     else:
         raise Exception("Usage: python plex-delete-trash.py plex_url, plex_token sytemctl-mount-name")
 
 def get_plex_token():
     # Access individual arguments (with error checking)
-    if len(sys.argv) > 2:
+    if len(sys.argv) == 1:
+        return  os.environ.get('PLEX_TOKEN')
+    elif len(sys.argv) > 2:
         return sys.argv[2]
     else:
         raise Exception("Usage: python plex-delete-trash.py plex_url, plex_token sytemctl-mount-name")
@@ -33,15 +38,18 @@ def get_plex_token():
 def check_mount_status():
     service_name = ""
     try:
-        if len(sys.argv) == 4:
+        if len(sys.argv) == 1:
+            service_name = os.environ.get('SYSTEM_MOUNT_NAME')
+        elif len(sys.argv) == 4:
             service_name = sys.argv[3]
+        if service_name:
             state = get_service_status(service_name)
             if state != "active":
                 raise Exception("check_mount_status: " + service_name + " is not active")
     except subprocess.CalledProcessError as e:
-        raise Exception("check_mount_status: " + service_name + " is not active " + str(e))
+        raise Exception("check_mount_status: " + str(service_name) + " is not active " + str(e))
     except Exception as e:
-        raise Exception("check_mount_status: " + service_name + " is not active " + str(e))
+        raise Exception("check_mount_status: " + str(service_name) + " is not active " + str(e))
     return
 
 def delete_trash():
@@ -49,8 +57,16 @@ def delete_trash():
 
     try:
         check_mount_status()
+
         plex_url = get_plex_url()
-        plex = PlexServer(plex_url, get_plex_token())
+        if not plex_url:
+            raise Exception("plex_url not set");
+
+        plex_token = get_plex_token()
+        if not plex_token:
+            raise Exception("plex_token not set");
+
+        plex = PlexServer(plex_url, plex_token)
 
         # Empty trash for every library section
         for section in plex.library.sections():
@@ -62,9 +78,9 @@ def delete_trash():
         print(f"Finished: {plex_url}")
 
     except subprocess.CalledProcessError as e:
-        print(dt.datetime.now().time(), "CalledProcessError Unable to get status of Media Mount " + plex_url + " " + str(e))
+        print(dt.datetime.now().time(), "CalledProcessError Unable to get status of Media Mount for PlexURL:" + str(plex_url) + " Error: " + str(e))
     except Exception as e:
-        print(dt.datetime.now().time(), "Unable to empty trash " + plex_url + " " + str(e))
+        print(dt.datetime.now().time(), "Unable to empty trash PlexURL:" + str(plex_url) + " Error:" + str(e))
     return
 
 delete_trash()
