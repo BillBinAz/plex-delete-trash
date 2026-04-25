@@ -4,7 +4,7 @@ services:
     image: plex-delete-trash:latest
     restart: unless-stopped
     environment:
-      - PLEX_TOKEN=7gYQs5NMuJGEq4vXGhyV
-      - PLEX_URL=https://plex.evilminions.org:32400
+      - PLEX_TOKEN=<PLEX_TOKEN>
+      - PLEX_URL=<PLEX_URL>
     labels:
       - diun.enable=true
