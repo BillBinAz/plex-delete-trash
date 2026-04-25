@@ -3,7 +3,9 @@ name: Test and Docker Build from Dockerfile on PR
 on:
   pull_request:
     types: [opened]
-    branches: [ "master" ]
+    branches:
+      - "*"
+      - '!master'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
