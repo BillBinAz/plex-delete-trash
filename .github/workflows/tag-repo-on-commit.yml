@@ -42,7 +42,10 @@ jobs:
     name: Tag on release
     needs: test
     runs-on: ubuntu-latest
-
+    permissions:
+      packages: write
+      contents: write
+      
     steps:
       - uses: actions/checkout@v6
 
@@ -52,8 +55,10 @@ jobs:
         with:
           github_token: ${{ secrets.PATNAME }}
 
-      - name: Create a GitHub Release
-        uses: ncipollo/release-action@v1
+      - name: Create a Release
+        uses: elgohr/Github-Release-Action@v5
+        env:
+          GH_TOKEN: ${{ secrets.PATNAME }}
         with:
-          tag: ${{ steps.tag_version.outputs.new_tag }} # Accesses the new tag
-          name: Release ${{ steps.tag_version.outputs.new_tag }}
+          title:  Release ${{ steps.tag_version.outputs.new_tag }} 
+          tag: ${{ steps.tag_version.outputs.new_tag }} 
