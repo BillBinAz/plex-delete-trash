@@ -1,5 +1,6 @@
 # Plex-Delete-Trash
-Calls EmptyTrash() on each library following a schedule
+Calls EmptyTrash() on each library following a schedule using plexapi
+- https://github.com/pushingkarmaorg/python-plexapi
 ### Environment Variables
 
 #### PLEX_URL
