@@ -41,6 +41,7 @@ services:
       - PLEX_TOKEN=your_plex_token_here
       - PLEX_IDLE_TIME_MIN=15
       - PLEX_CRON_SCHEDULE="*/15 4 * * *"
+      - TZ=America/Phoenix
 ```
 
 ### Manual Python Execution
