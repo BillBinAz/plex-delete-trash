@@ -15,6 +15,17 @@ Calls EmptyTrash() on each library following a schedule
 - Default: "*/15 4 * * *"
 
 #### Docker Compose Example
-'''
-
-''''
+```
+services:
+  plex-delete-trash:
+    build: .
+    container_name: plex-delete-trash
+    image:  plex-delete-trash
+    restart: unless-stopped
+    network_mode: bridge
+    environment:
+      - PLEX_URL="<PLEX_URL>"
+      - PLEX_TOKEN=<PLEX_TOKEN>
+      - PLEX_IDLE_TIME_MIN=15
+      - PLEX_CRON_SCHEDULE="*/15 4 * * *"
+```
