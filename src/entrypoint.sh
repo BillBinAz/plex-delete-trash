@@ -1,38 +1,132 @@
 #!/bin/bash
-CRON_SCHEDULE_DEFAULT="*/15 4 * * *"
-CRON_REGEX='^([0-9\/\*,-]+[[:space:]]+){4}[0-9\/\*,-]+$'
-SED_TARGET=SED-TARGET
-PLEX_IDLE_TIME_MIN_DEFAULT=5
+set -euo pipefail
 
-# Export current env vars to a file
-env >  /app/container_env.sh
+# Configuration constants
+readonly CRON_SCHEDULE_DEFAULT="*/15 4 * * *"
+readonly CRON_REGEX='^([0-9\/\*,-]+[[:space:]]+){4}[0-9\/\*,-]+$'
+readonly SED_TARGET="SED-TARGET"
+readonly PLEX_IDLE_TIME_MIN_DEFAULT=5
+readonly CRON_FILE="/etc/crontabs/root"
+readonly ENV_FILE="/app/container_env.sh"
 
-echo "Starting Plex-Delete-Trash for ${PLEX_URL} ..."
+# Logging function
+log() {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*"
+}
 
-# validate cron and use cron
-if [[ -n "$PLEX_CRON_SCHEDULE" ]]; then
-  stripped_schedule=$(echo "$PLEX_CRON_SCHEDULE" | tr -d '"')
-  default_stripped_schedule=$(echo "$CRON_SCHEDULE_DEFAULT" | tr -d '"')
-  if [[ "$stripped_schedule" =~ $CRON_REGEX ]]; then
-    if sed -i "s|$SED_TARGET|$stripped_schedule|g" /etc/crontabs/root; then
-      echo "Override Default Cron schedule: $stripped_schedule"
-    else
-      sed -i "s|$SED_TARGET|$default_stripped_schedule|g" /etc/crontabs/root;
-      echo "sed -i 's|$SED_TARGET|$stripped_schedule/g' /etc/crontabs/root;"
-      echo "sed failed on: $stripped_schedule  Using default Cron schedule> $default_stripped_schedule"
+log_error() {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] ERROR: $*" >&2
+}
+
+# Error handler
+error_exit() {
+    log_error "$1"
+    exit 1
+}
+
+# Validate required variables
+validate_config() {
+    if [[ -z "${PLEX_URL:-}" ]]; then
+        error_exit "PLEX_URL environment variable is not set"
     fi
-  else
-      echo "Invalid PLEX_CRON_SCHEDULE.  Using default: $CRON_SCHEDULE_DEFAULT"
-  fi
-else
-  echo "Using default Cron schedule> ($CRON_SCHEDULE_DEFAULT)"
-fi
 
-if [[ -n "$PLEX_IDLE_TIME_MIN" ]]; then
-      echo "Library Idle Time: $PLEX_IDLE_TIME_MIN"
-else
-      echo "Library Idle Time: $PLEX_IDLE_TIME_MIN_DEFAULT"
-fi
+    if [[ -z "${PLEX_TOKEN:-}" ]]; then
+        error_exit "PLEX_TOKEN environment variable is not set"
+    fi
 
-# Start cron
-crond -f -l 2
+    log "Configuration validated"
+}
+
+# Export environment variables
+export_env() {
+    if ! env > "$ENV_FILE"; then
+        error_exit "Failed to export environment variables to $ENV_FILE"
+    fi
+    log "Environment variables exported to $ENV_FILE"
+}
+
+# Verify cron file exists
+verify_cron_file() {
+    if [[ ! -f "$CRON_FILE" ]]; then
+        error_exit "Cron file not found: $CRON_FILE"
+    fi
+}
+
+# Configure cron schedule
+configure_cron_schedule() {
+    local schedule_to_use="$CRON_SCHEDULE_DEFAULT"
+
+    if [[ -n "${PLEX_CRON_SCHEDULE:-}" ]]; then
+        # Remove quotes from the schedule
+        local stripped_schedule
+        stripped_schedule=$(echo "$PLEX_CRON_SCHEDULE" | tr -d '"' | tr -d "'")
+
+        # Validate schedule format
+        if [[ "$stripped_schedule" =~ $CRON_REGEX ]]; then
+            schedule_to_use="$stripped_schedule"
+            log "Custom cron schedule provided: $schedule_to_use"
+        else
+            log_error "Invalid PLEX_CRON_SCHEDULE format: $stripped_schedule"
+            log "Using default cron schedule: $CRON_SCHEDULE_DEFAULT"
+        fi
+    else
+        log "No custom cron schedule provided, using default: $CRON_SCHEDULE_DEFAULT"
+    fi
+
+    # Verify SED_TARGET exists in cron file
+    if ! grep -q "$SED_TARGET" "$CRON_FILE"; then
+        error_exit "Placeholder '$SED_TARGET' not found in $CRON_FILE. File may be corrupted."
+    fi
+
+    # Replace placeholder with actual schedule
+    if sed -i "s|$SED_TARGET|$schedule_to_use|g" "$CRON_FILE"; then
+        # Verify replacement was successful
+        if grep -q "$schedule_to_use" "$CRON_FILE"; then
+            log "Cron schedule configured: $schedule_to_use"
+        else
+            error_exit "Failed to verify cron schedule replacement"
+        fi
+    else
+        error_exit "Failed to update cron schedule in $CRON_FILE"
+    fi
+}
+
+# Display configuration
+show_configuration() {
+    log "========== Configuration Summary =========="
+    log "Plex URL: ${PLEX_URL}"
+    log "Plex Token: [set]"
+    log "Idle Time Threshold: ${PLEX_IDLE_TIME_MIN:-$PLEX_IDLE_TIME_MIN_DEFAULT} minutes"
+    log "Cron Schedule: $(grep -v '^#' "$CRON_FILE" 2>/dev/null | grep -v '^$' || echo 'default')"
+    log "==========================================="
+}
+
+# Main execution
+main() {
+    log "Starting Plex-Delete-Trash entrypoint..."
+
+    # Validate configuration
+    validate_config
+
+    # Export environment variables
+    export_env
+
+    # Verify cron file exists
+    verify_cron_file
+
+    # Configure cron schedule
+    configure_cron_schedule
+
+    # Display configuration summary
+    show_configuration
+
+    log "Entrypoint configuration complete. Starting cron daemon..."
+    log "=========================================================="
+}
+
+# Run main function
+main
+
+# Start cron daemon in foreground
+exec crond -f -l 2
+
