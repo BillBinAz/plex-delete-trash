@@ -1,2 +1,2 @@
 # Run a script every 15 minute after every hour
-SED-TARGET . /app/container_env.sh; /usr/local/bin/python3 /app/plex-delete-trash.py
+SED-TARGET . /app/container_env.sh; /usr/local/bin/python3 /app/plex_delete_trash.py
