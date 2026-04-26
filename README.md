@@ -18,7 +18,6 @@ Calls EmptyTrash() on each library following a schedule
 ```
 services:
   plex-delete-trash:
-    build: .
     container_name: plex-delete-trash
     image:  plex-delete-trash
     restart: unless-stopped
