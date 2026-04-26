@@ -19,7 +19,7 @@ Calls EmptyTrash() on each library following a schedule
 services:
   plex-delete-trash:
     container_name: plex-delete-trash
-    image:  plex-delete-trash
+    image:  ghcr.io/billbinaz/plex-delete-trash:latest
     restart: unless-stopped
     network_mode: bridge
     environment:
