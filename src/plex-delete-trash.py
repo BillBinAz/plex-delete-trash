@@ -41,6 +41,12 @@ def check_section_status(plex, section):
     except Exception as e:
         raise Exception("PlexURL section " + str(section.title) + "does not exist:" + str(e))
 
+def safe_float(value, default=0.0):
+    try:
+        return float(value)
+    except (ValueError, TypeError):
+        return default
+
 def delete_trash():
     plex_url = "No Set"
 
@@ -55,10 +61,10 @@ def delete_trash():
             raise Exception("plex_token not set");
 
         plex = PlexServer(plex_url, plex_token, timeout=5)
-
+        idle_time = safe_float(os.getenv("PLEX_IDLE_TIME_MIN"), 5)
         # Empty trash for every library section
         for section in plex.library.sections():
-            if not section.refreshing and section.updatedAt <= dt.datetime.now() - dt.timedelta(minutes=5):
+            if not section.refreshing and section.updatedAt <= dt.datetime.now() - dt.timedelta(minutes=idle_time):
                 print(f"Emptying trash for library: {section.title}")
                 check_section_status(plex, section)
                 section.emptyTrash()

@@ -1,5 +1,5 @@
 # Use a lightweight Python Alpine image
-FROM python:3.12-alpine
+FROM python:3-alpine
 LABEL authors="BillBinAz"
 
 # Install updates
@@ -10,15 +10,13 @@ WORKDIR /app
 
 # Copy only the requirements file first to leverage Docker cache
 COPY requirements.txt .
-
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the script and crontab file
-COPY ./src/plex-delete-trash.py .
-
+# Copy the scripts
+COPY src/plex-delete-trash.py .
 COPY cron-job /etc/crontabs/root
 
 # start script
-COPY entrypoint.sh .
+COPY src/entrypoint.sh .
 RUN chmod +x /app/entrypoint.sh
 ENTRYPOINT ["/app/entrypoint.sh"]

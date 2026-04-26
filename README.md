@@ -1,9 +1,20 @@
-# plex-delete-trash
+# Plex-Delete-Trash
+Calls EmptyTrash() on each library following a schedule
+### Environment Variables
 
-usage: 
-0 5 * * * python3 plex-delete-trash.py <PLEX_URL> <PLEX_TOKEN> <optional: Mount service name (mnt-media.mount)> > /var/log/plex-delete-trash.log
+#### PLEX_URL
+- Full URL to the plex server including HTTP or HTTPS and port number
+#### PLEX_TOKEN
+- Plex Token 
+-- https://support.plex.tv/articles/204059436-finding-an-authentication-token-x-plex-token/
+#### PLEX_IDLE_TIME_MIN
+- Optional: FLoat with a minimum idle time in minutes for all libraries
+- Default: 5
+#### PLEX_CRON_SCHEDULE
+- Optional: Cron schedule.  Example: 5 4 * * *.  
+- Default: "*/15 4 * * *"
 
+#### Docker Compose Example
+'''
 
-SYSTEM_MOUNT_NAME
-PLEX_TOKEN
-PLEX_URL
+''''
