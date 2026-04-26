@@ -13,7 +13,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the scripts
-COPY src/plex-delete-trash.py .
+COPY src/plex_delete_trash.py .
 COPY cron-job /etc/crontabs/root
 
 # start script
