@@ -32,6 +32,11 @@ jobs:
           flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
           # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
           flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+      - name: Install ShellCheck for bash linting
+        run: sudo apt-get install -y shellcheck
+      - name: Lint shell scripts with ShellCheck
+        run: |
+          shellcheck src/entrypoint.sh
       - name: set pythonpath
         run: |
           echo "PYTHONPATH=./src" >> $GITHUB_ENV
@@ -66,6 +71,11 @@ jobs:
 
       - name: Set lowercase repository
         run: echo "REPOSITORY_LC=$(echo ${{ github.repository }} | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+
+      - name: Lint Dockerfile with hadolint
+        run: |
+          sudo apt-get install -y hadolint
+          hadolint Dockerfile || true
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
