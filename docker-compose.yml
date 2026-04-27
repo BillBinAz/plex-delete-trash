@@ -1,8 +1,7 @@
 services:
   plex-delete-trash:
-    build: .
     container_name: plex-delete-trash
-    image:  plex-delete-trash
+    image:  plex-delete-trash:testing
     restart: unless-stopped
     network_mode: bridge
     environment:
