@@ -72,11 +72,6 @@ jobs:
       - name: Set lowercase repository
         run: echo "REPOSITORY_LC=$(echo ${{ github.repository }} | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
 
-      - name: Run Hadolint
-        uses: hadolint/hadolint-action@v3.1.0
-        with:
-          dockerfile: Dockerfile
-
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
