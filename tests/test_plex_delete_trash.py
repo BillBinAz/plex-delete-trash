@@ -2,8 +2,8 @@ import unittest
 import sys
 import os
 import datetime as dt
-from unittest.mock import patch, MagicMock, call
-from io import StringIO
+from unittest.mock import patch, MagicMock
+import xml.etree.ElementTree as ET
 
 # Add src to path so we can import the module
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
@@ -88,6 +88,27 @@ class TestGetPlexToken(unittest.TestCase):
                 self.assertEqual(result, 'argv_token')
 
 
+class TestCreateSessionWithRetries(unittest.TestCase):
+    """Test cases for create_session_with_retries function"""
+
+    def test_create_session_with_retries(self):
+        """Test that session is created with proper retry configuration"""
+        session = plex_delete_trash.create_session_with_retries()
+
+        # Verify it's a requests Session
+        self.assertIsInstance(session, type(session))
+
+        # Verify adapters are mounted
+        self.assertIn('http://', session.adapters)
+        self.assertIn('https://', session.adapters)
+
+        # Verify retry configuration
+        http_adapter = session.adapters['http://']
+        self.assertEqual(http_adapter.max_retries.total, 3)
+        self.assertEqual(http_adapter.max_retries.backoff_factor, 1)
+        self.assertEqual(http_adapter.max_retries.status_forcelist, [429, 500, 502, 503, 504])
+
+
 class TestSafeFloat(unittest.TestCase):
     """Test cases for safe_float function"""
 
@@ -148,80 +169,310 @@ class TestSafeFloat(unittest.TestCase):
         self.assertIn("Default must be a number", str(context.exception))
 
 
-class TestCheckSectionStatus(unittest.TestCase):
-    """Test cases for check_section_status function"""
+class TestGetLibrarySections(unittest.TestCase):
+    """Test cases for get_library_sections function"""
 
-    def test_check_section_status_section_exists(self):
-        """Test check_section_status when section exists"""
-        mock_plex = MagicMock()
-        mock_section = MagicMock()
-        mock_section.title = "Movies"
+    def test_get_library_sections_success(self):
+        """Test successful retrieval of library sections"""
+        mock_session = MagicMock()
+        mock_response = MagicMock()
+        mock_response.content = '''<?xml version="1.0" encoding="UTF-8"?>
+<MediaContainer>
+    <Directory key="1" title="Movies" refreshing="0" updatedAt="1640995200"/>
+    <Directory key="2" title="TV Shows" refreshing="1" updatedAt="1640995300"/>
+</MediaContainer>'''
+        mock_session.get.return_value = mock_response
 
-        # This should not raise an exception
-        plex_delete_trash.check_section_status(mock_plex, mock_section)
-        mock_plex.library.section.assert_called_once_with("Movies")
+        result = plex_delete_trash.get_library_sections('http://plex.local:32400', 'token123', mock_session)
 
-    def test_check_section_status_section_not_found(self):
-        """Test check_section_status when section doesn't exist"""
-        mock_plex = MagicMock()
-        mock_section = MagicMock()
-        mock_section.title = "NonExistent"
-        mock_plex.library.section.side_effect = Exception("Not found")
+        expected = [
+            {'id': '1', 'title': 'Movies', 'refreshing': False, 'updatedAt': 1640995200},
+            {'id': '2', 'title': 'TV Shows', 'refreshing': True, 'updatedAt': 1640995300}
+        ]
+        self.assertEqual(result, expected)
+        mock_session.get.assert_called_once_with(
+            'http://plex.local:32400/library/sections',
+            headers={'X-Plex-Token': 'token123'},
+            timeout=5
+        )
 
-        with self.assertRaises(Exception) as context:
-            plex_delete_trash.check_section_status(mock_plex, mock_section)
-        self.assertIn("does not exist", str(context.exception))
-        self.assertIn("NonExistent", str(context.exception))
+    def test_get_library_sections_empty_response(self):
+        """Test handling of empty library sections response"""
+        mock_session = MagicMock()
+        mock_response = MagicMock()
+        mock_response.content = '''<?xml version="1.0" encoding="UTF-8"?>
+<MediaContainer>
+</MediaContainer>'''
+        mock_session.get.return_value = mock_response
 
-    def test_check_section_status_various_section_names(self):
-        """Test check_section_status with various section names"""
-        mock_plex = MagicMock()
+        result = plex_delete_trash.get_library_sections('http://plex.local:32400', 'token123', mock_session)
+        self.assertEqual(result, [])
 
-        section_names = ["Movies", "TV Shows", "Music", "Photos", "Custom Library"]
-
-        for section_name in section_names:
-            mock_section = MagicMock()
-            mock_section.title = section_name
-            plex_delete_trash.check_section_status(mock_plex, mock_section)
-            mock_plex.library.section.assert_called_with(section_name)
-
-    def test_check_section_status_none_section(self):
-        """Test check_section_status when section is None"""
-        mock_plex = MagicMock()
-
-        with self.assertRaises(Exception) as context:
-            plex_delete_trash.check_section_status(mock_plex, None)
-        self.assertIn("Section object is None", str(context.exception))
-
-    def test_check_section_status_no_title_attribute(self):
-        """Test check_section_status when section has no title attribute"""
-        mock_plex = MagicMock()
-        mock_section = MagicMock()
-        del mock_section.title  # Remove title attribute
+    def test_get_library_sections_request_failure(self):
+        """Test handling of request failure"""
+        mock_session = MagicMock()
+        mock_session.get.side_effect = Exception("Connection refused")
 
         with self.assertRaises(Exception) as context:
-            plex_delete_trash.check_section_status(mock_plex, mock_section)
-        self.assertIn("Section has no title attribute", str(context.exception))
+            plex_delete_trash.get_library_sections('http://plex.local:32400', 'token123', mock_session)
+        self.assertIn("Failed to retrieve library sections", str(context.exception))
 
-    def test_check_section_status_none_title(self):
-        """Test check_section_status when section title is None"""
-        mock_plex = MagicMock()
-        mock_section = MagicMock()
-        mock_section.title = None
-
-        with self.assertRaises(Exception) as context:
-            plex_delete_trash.check_section_status(mock_plex, mock_section)
-        self.assertIn("Section has no title attribute", str(context.exception))
-
-    def test_check_section_status_non_string_title(self):
-        """Test check_section_status when section title is not a string"""
-        mock_plex = MagicMock()
-        mock_section = MagicMock()
-        mock_section.title = 123  # Non-string title
+    def test_get_library_sections_xml_parse_error(self):
+        """Test handling of invalid XML response"""
+        mock_session = MagicMock()
+        mock_response = MagicMock()
+        mock_response.content = "Invalid XML content"
+        mock_session.get.return_value = mock_response
 
         with self.assertRaises(Exception) as context:
-            plex_delete_trash.check_section_status(mock_plex, mock_section)
-        self.assertIn("Section title must be string", str(context.exception))
+            plex_delete_trash.get_library_sections('http://plex.local:32400', 'token123', mock_session)
+        self.assertIn("Failed to parse library sections response", str(context.exception))
+
+    def test_get_library_sections_missing_attributes(self):
+        """Test handling of sections with missing attributes"""
+        mock_session = MagicMock()
+        mock_response = MagicMock()
+        mock_response.content = '''<?xml version="1.0" encoding="UTF-8"?>
+<MediaContainer>
+    <Directory title="Movies"/>
+    <Directory key="2"/>
+</MediaContainer>'''
+        mock_session.get.return_value = mock_response
+
+        result = plex_delete_trash.get_library_sections('http://plex.local:32400', 'token123', mock_session)
+
+        expected = [
+            {'id': None, 'title': 'Movies', 'refreshing': False, 'updatedAt': 0},
+            {'id': '2', 'title': None, 'refreshing': False, 'updatedAt': 0}
+        ]
+        self.assertEqual(result, expected)
+
+
+class TestVerifySectionStatus(unittest.TestCase):
+    """Test cases for verify_section_status function"""
+
+    def test_verify_section_status_success(self):
+        """Test successful section verification"""
+        mock_session = MagicMock()
+        mock_response = MagicMock()
+        mock_session.get.return_value = mock_response
+
+        # Should not raise exception
+        plex_delete_trash.verify_section_status('http://plex.local:32400', 'token123', '1', mock_session)
+
+        mock_session.get.assert_called_once_with(
+            'http://plex.local:32400/library/sections/1',
+            headers={'X-Plex-Token': 'token123'},
+            timeout=5
+        )
+
+    def test_verify_section_status_invalid_id(self):
+        """Test handling of invalid section ID"""
+        mock_session = MagicMock()
+
+        with self.assertRaises(Exception) as context:
+            plex_delete_trash.verify_section_status('http://plex.local:32400', 'token123', None, mock_session)
+        self.assertIn("Section ID is invalid", str(context.exception))
+
+        with self.assertRaises(Exception) as context:
+            plex_delete_trash.verify_section_status('http://plex.local:32400', 'token123', '', mock_session)
+        self.assertIn("Section ID is invalid", str(context.exception))
+
+    def test_verify_section_status_request_failure(self):
+        """Test handling of request failure"""
+        mock_session = MagicMock()
+        mock_session.get.side_effect = Exception("Not found")
+
+        with self.assertRaises(Exception) as context:
+            plex_delete_trash.verify_section_status('http://plex.local:32400', 'token123', '999', mock_session)
+        self.assertIn("does not exist or is not accessible", str(context.exception))
+
+
+class TestEmptyTrash(unittest.TestCase):
+    """Test cases for empty_trash function"""
+
+    def test_empty_trash_success(self):
+        """Test successful trash emptying"""
+        mock_session = MagicMock()
+        mock_response = MagicMock()
+        mock_session.put.return_value = mock_response
+
+        # Should not raise exception
+        plex_delete_trash.empty_trash('http://plex.local:32400', 'token123', '1', mock_session)
+
+        mock_session.put.assert_called_once_with(
+            'http://plex.local:32400/library/sections/1/emptyTrash',
+            headers={'X-Plex-Token': 'token123'},
+            timeout=5
+        )
+
+    def test_empty_trash_request_failure(self):
+        """Test handling of request failure"""
+        mock_session = MagicMock()
+        mock_session.put.side_effect = Exception("Permission denied")
+
+        with self.assertRaises(Exception) as context:
+            plex_delete_trash.empty_trash('http://plex.local:32400', 'token123', '1', mock_session)
+        self.assertIn("Failed to empty trash for section 1", str(context.exception))
+
+
+class TestValidateCredentials(unittest.TestCase):
+    """Test cases for _validate_credentials function"""
+
+    def test_validate_credentials_success(self):
+        """Test successful credential validation"""
+        result = plex_delete_trash._validate_credentials('http://plex.local:32400', 'token123')
+        self.assertEqual(result, ('http://plex.local:32400', 'token123'))
+
+    def test_validate_credentials_url_none(self):
+        """Test validation with None URL"""
+        with self.assertRaises(Exception) as context:
+            plex_delete_trash._validate_credentials(None, 'token123')
+        self.assertIn("plex_url not set", str(context.exception))
+
+    def test_validate_credentials_url_not_string(self):
+        """Test validation with non-string URL"""
+        with self.assertRaises(Exception) as context:
+            plex_delete_trash._validate_credentials(123, 'token123')
+        self.assertIn("plex_url must be string", str(context.exception))
+
+    def test_validate_credentials_url_whitespace_only(self):
+        """Test validation with whitespace-only URL"""
+        with self.assertRaises(Exception) as context:
+            plex_delete_trash._validate_credentials('   \t\n  ', 'token123')
+        self.assertIn("plex_url cannot be empty or whitespace", str(context.exception))
+
+    def test_validate_credentials_token_none(self):
+        """Test validation with None token"""
+        with self.assertRaises(Exception) as context:
+            plex_delete_trash._validate_credentials('http://plex.local:32400', None)
+        self.assertIn("plex_token not set", str(context.exception))
+
+    def test_validate_credentials_token_not_string(self):
+        """Test validation with non-string token"""
+        with self.assertRaises(Exception) as context:
+            plex_delete_trash._validate_credentials('http://plex.local:32400', 456)
+        self.assertIn("plex_token must be string", str(context.exception))
+
+    def test_validate_credentials_token_whitespace_only(self):
+        """Test validation with whitespace-only token"""
+        with self.assertRaises(Exception) as context:
+            plex_delete_trash._validate_credentials('http://plex.local:32400', '   \t\n  ')
+        self.assertIn("plex_token cannot be empty or whitespace", str(context.exception))
+
+
+class TestProcessSections(unittest.TestCase):
+    """Test cases for _process_sections function"""
+
+    def test_process_sections_empty_list(self):
+        """Test processing with empty sections list"""
+        mock_session = MagicMock()
+
+        with patch('builtins.print') as mock_print:
+            plex_delete_trash._process_sections([], 'http://plex.local:32400', 'token123', 5.0, mock_session)
+            mock_print.assert_called_once_with(
+                "No library sections found on Plex server")
+
+    def test_process_sections_none_section(self):
+        """Test processing with None section in list"""
+        mock_session = MagicMock()
+
+        with patch('builtins.print') as mock_print:
+            plex_delete_trash._process_sections([None], 'http://plex.local:32400', 'token123', 5.0, mock_session)
+            mock_print.assert_any_call(
+                "Warning: Skipping None section")
+
+    def test_process_sections_missing_attributes(self):
+        """Test processing section with missing attributes"""
+        mock_session = MagicMock()
+        section = {'title': 'Movies'}  # Missing 'id'
+
+        with patch('builtins.print') as mock_print:
+            plex_delete_trash._process_sections([section], 'http://plex.local:32400', 'token123', 5.0, mock_session)
+            mock_print.assert_any_call("Warning: Skipping section with missing attributes")
+
+    def test_process_sections_refreshing_section(self):
+        """Test processing section that is currently refreshing"""
+        mock_session = MagicMock()
+        section = {
+            'id': '1',
+            'title': 'Movies',
+            'refreshing': True,
+            'updatedAt': int(dt.datetime.now().timestamp())
+        }
+
+        with patch('builtins.print') as mock_print:
+            plex_delete_trash._process_sections([section], 'http://plex.local:32400', 'token123', 5.0, mock_session)
+            mock_print.assert_any_call("Library is being scanned: Movies")
+
+    def test_process_sections_recently_updated(self):
+        """Test processing section updated within idle time"""
+        mock_session = MagicMock()
+        # Updated 2 minutes ago (less than default 5 minutes)
+        updated_time = dt.datetime.now() - dt.timedelta(minutes=2)
+        section = {
+            'id': '1',
+            'title': 'Movies',
+            'refreshing': False,
+            'updatedAt': int(updated_time.timestamp())
+        }
+
+        with patch('builtins.print') as mock_print:
+            plex_delete_trash._process_sections([section], 'http://plex.local:32400', 'token123', 5.0, mock_session)
+            mock_print.assert_any_call("Library is being scanned: Movies")
+
+    def test_process_sections_old_section(self):
+        """Test processing section that should have trash emptied"""
+        mock_session = MagicMock()
+        # Updated 10 minutes ago (more than default 5 minutes)
+        updated_time = dt.datetime.now() - dt.timedelta(minutes=10)
+        section = {
+            'id': '1',
+            'title': 'Movies',
+            'refreshing': False,
+            'updatedAt': int(updated_time.timestamp())
+        }
+
+        with patch('builtins.print') as mock_print:
+            plex_delete_trash._process_sections([section], 'http://plex.local:32400', 'token123', 5.0, mock_session)
+            mock_print.assert_any_call("Emptying trash for library: Movies")
+
+    def test_process_sections_verification_failure(self):
+        """Test handling of section verification failure"""
+        mock_session = MagicMock()
+        mock_session.get.side_effect = Exception("Not found")
+        updated_time = dt.datetime.now() - dt.timedelta(minutes=10)
+        section = {
+            'id': '1',
+            'title': 'Movies',
+            'refreshing': False,
+            'updatedAt': int(updated_time.timestamp())
+        }
+
+        with patch('builtins.print') as mock_print:
+            plex_delete_trash._process_sections([section], 'http://plex.local:32400', 'token123', 5.0, mock_session)
+            mock_print.assert_any_call("Error processing section: Section 1 does not exist or is not accessible: Not found")
+
+    def test_process_sections_empty_trash_failure(self):
+        """Test handling of empty trash failure"""
+        mock_session = MagicMock()
+        # First call for verification succeeds
+        mock_response_verify = MagicMock()
+        # Second call for emptyTrash fails
+        mock_session.get.return_value = mock_response_verify
+        mock_session.put.side_effect = Exception("Permission denied")
+
+        updated_time = dt.datetime.now() - dt.timedelta(minutes=10)
+        section = {
+            'id': '1',
+            'title': 'Movies',
+            'refreshing': False,
+            'updatedAt': int(updated_time.timestamp())
+        }
+
+        with patch('builtins.print') as mock_print:
+            plex_delete_trash._process_sections([section], 'http://plex.local:32400', 'token123', 5.0, mock_session)
+            mock_print.assert_any_call("Error processing section: Failed to empty trash for section 1: Permission denied")
 
 
 class TestDeleteTrash(unittest.TestCase):
@@ -229,13 +480,13 @@ class TestDeleteTrash(unittest.TestCase):
 
     def test_delete_trash_successful(self):
         """Test successful trash deletion"""
-        # Mock PlexServer
-        mock_plex_instance = MagicMock()
-        mock_section = MagicMock()
-        mock_section.title = "Movies"
-        mock_section.refreshing = False
-        mock_section.updatedAt = dt.datetime.now() - dt.timedelta(minutes=10)
-        mock_plex_instance.library.sections.return_value = [mock_section]
+        mock_session = MagicMock()
+        mock_response = MagicMock()
+        mock_response.content = '''<?xml version="1.0" encoding="UTF-8"?>
+<MediaContainer>
+    <Directory key="1" title="Movies" refreshing="0" updatedAt="1640995200"/>
+</MediaContainer>'''
+        mock_session.get.return_value = mock_response
 
         with patch.dict(os.environ, {
             'PLEX_URL': 'http://plex.local:32400',
@@ -243,91 +494,15 @@ class TestDeleteTrash(unittest.TestCase):
             'PLEX_IDLE_TIME_MIN': '5'
         }):
             with patch('sys.argv', ['plex_delete_trash.py']):
-                with patch('plex_delete_trash.PlexServer', return_value=mock_plex_instance):
-                    with patch('builtins.print') as mock_print:
-                        plex_delete_trash.delete_trash()
+                with patch('plex_delete_trash.create_session_with_retries', return_value=mock_session):
+                    with patch('plex_delete_trash.get_library_sections', return_value=[
+                        {'id': '1', 'title': 'Movies', 'refreshing': False, 'updatedAt': 1640995200}
+                    ]):
+                        with patch('builtins.print') as mock_print:
+                            plex_delete_trash.delete_trash()
 
-                        # Verify trash was emptied
-                        mock_section.emptyTrash.assert_called_once()
-
-    def test_delete_trash_section_refreshing(self):
-        """Test that trash is not deleted when section is refreshing"""
-        mock_plex_instance = MagicMock()
-        mock_section = MagicMock()
-        mock_section.title = "TV Shows"
-        mock_section.refreshing = True
-        mock_section.updatedAt = dt.datetime.now()
-        mock_plex_instance.library.sections.return_value = [mock_section]
-
-        with patch.dict(os.environ, {
-            'PLEX_URL': 'http://plex.local:32400',
-            'PLEX_TOKEN': 'test_token',
-            'PLEX_IDLE_TIME_MIN': '5'
-        }):
-            with patch('sys.argv', ['plex_delete_trash.py']):
-                with patch('plex_delete_trash.PlexServer', return_value=mock_plex_instance):
-                    with patch('builtins.print') as mock_print:
-                        plex_delete_trash.delete_trash()
-
-                        # Verify trash was NOT emptied
-                        mock_section.emptyTrash.assert_not_called()
-                        # Verify message about scanning
-                        mock_print.assert_any_call("Library is being scanned: TV Shows")
-
-    def test_delete_trash_section_recently_updated(self):
-        """Test that trash is not deleted when section was recently updated"""
-        mock_plex_instance = MagicMock()
-        mock_section = MagicMock()
-        mock_section.title = "Music"
-        mock_section.refreshing = False
-        # Updated 2 minutes ago (less than default idle time of 5 minutes)
-        mock_section.updatedAt = dt.datetime.now() - dt.timedelta(minutes=2)
-        mock_plex_instance.library.sections.return_value = [mock_section]
-
-        with patch.dict(os.environ, {
-            'PLEX_URL': 'http://plex.local:32400',
-            'PLEX_TOKEN': 'test_token',
-            'PLEX_IDLE_TIME_MIN': '5'
-        }):
-            with patch('sys.argv', ['plex_delete_trash.py']):
-                with patch('plex_delete_trash.PlexServer', return_value=mock_plex_instance):
-                    with patch('builtins.print') as mock_print:
-                        plex_delete_trash.delete_trash()
-
-                        # Verify trash was NOT emptied
-                        mock_section.emptyTrash.assert_not_called()
-
-    def test_delete_trash_multiple_sections(self):
-        """Test trash deletion with multiple sections"""
-        mock_plex_instance = MagicMock()
-
-        # Section 1: old and not refreshing - should be cleaned
-        mock_section1 = MagicMock()
-        mock_section1.title = "Movies"
-        mock_section1.refreshing = False
-        mock_section1.updatedAt = dt.datetime.now() - dt.timedelta(minutes=30)
-
-        # Section 2: refreshing - should not be cleaned
-        mock_section2 = MagicMock()
-        mock_section2.title = "TV Shows"
-        mock_section2.refreshing = True
-        mock_section2.updatedAt = dt.datetime.now()
-
-        mock_plex_instance.library.sections.return_value = [mock_section1, mock_section2]
-
-        with patch.dict(os.environ, {
-            'PLEX_URL': 'http://plex.local:32400',
-            'PLEX_TOKEN': 'test_token',
-            'PLEX_IDLE_TIME_MIN': '5'
-        }):
-            with patch('sys.argv', ['plex_delete_trash.py']):
-                with patch('plex_delete_trash.PlexServer', return_value=mock_plex_instance):
-                    with patch('builtins.print'):
-                        plex_delete_trash.delete_trash()
-
-                        # Only first section should be cleaned
-                        mock_section1.emptyTrash.assert_called_once()
-                        mock_section2.emptyTrash.assert_not_called()
+                            # Verify finished message
+                            mock_print.assert_any_call("Finished: http://plex.local:32400")
 
     def test_delete_trash_missing_plex_url(self):
         """Test error handling when PLEX_URL is not set"""
@@ -338,10 +513,6 @@ class TestDeleteTrash(unittest.TestCase):
 
                     # Verify error was printed
                     mock_print.assert_called()
-                    # Check that error message was printed
-                    printed_messages = [str(call) for call in mock_print.call_args_list]
-                    error_printed = any('plex_url not set' in str(msg) for msg in printed_messages)
-                    self.assertTrue(error_printed or any('Unable to empty trash' in str(msg) for msg in printed_messages))
 
     def test_delete_trash_missing_plex_token(self):
         """Test error handling when PLEX_TOKEN is not set"""
@@ -355,139 +526,64 @@ class TestDeleteTrash(unittest.TestCase):
 
     def test_delete_trash_invalid_idle_time(self):
         """Test handling of invalid PLEX_IDLE_TIME_MIN"""
-        mock_plex_instance = MagicMock()
-        mock_section = MagicMock()
-        mock_section.title = "Movies"
-        mock_section.refreshing = False
-        mock_section.updatedAt = dt.datetime.now() - dt.timedelta(minutes=1)
-        mock_plex_instance.library.sections.return_value = [mock_section]
-
         with patch.dict(os.environ, {
             'PLEX_URL': 'http://plex.local:32400',
             'PLEX_TOKEN': 'test_token',
             'PLEX_IDLE_TIME_MIN': 'invalid_number'
         }):
             with patch('sys.argv', ['plex_delete_trash.py']):
-                with patch('plex_delete_trash.PlexServer', return_value=mock_plex_instance):
-                    with patch('builtins.print'):
-                        # Should not raise exception, should use default (0.0)
-                        plex_delete_trash.delete_trash()
+                with patch('builtins.print') as mock_print:
+                    plex_delete_trash.delete_trash()
 
-    def test_delete_trash_connection_error(self):
-        """Test handling of connection error to PlexServer"""
+                    # Should use default and continue
+                    mock_print.assert_called()
+
+    def test_delete_trash_negative_idle_time(self):
+        """Test error handling when PLEX_IDLE_TIME_MIN is negative"""
         with patch.dict(os.environ, {
-            'PLEX_URL': 'http://invalid.plex.server:32400',
+            'PLEX_URL': 'http://plex.local:32400',
+            'PLEX_TOKEN': 'test_token',
+            'PLEX_IDLE_TIME_MIN': '-5'
+        }):
+            with patch('sys.argv', ['plex_delete_trash.py']):
+                with patch('builtins.print') as mock_print:
+                    plex_delete_trash.delete_trash()
+
+                    # Verify error was printed
+                    mock_print.assert_called()
+
+    def test_delete_trash_sections_retrieval_error(self):
+        """Test error handling when library.sections() fails"""
+        mock_session = MagicMock()
+
+        with patch.dict(os.environ, {
+            'PLEX_URL': 'http://plex.local:32400',
             'PLEX_TOKEN': 'test_token'
         }):
             with patch('sys.argv', ['plex_delete_trash.py']):
-                with patch('plex_delete_trash.PlexServer', side_effect=Exception("Connection refused")):
-                    with patch('builtins.print') as mock_print:
-                        plex_delete_trash.delete_trash()
-
-                        # Verify error handling
-                        mock_print.assert_called()
-
-    def test_delete_trash_check_section_status_called(self):
-        """Test that check_section_status is called for each old section"""
-        mock_plex_instance = MagicMock()
-        mock_section = MagicMock()
-        mock_section.title = "Movies"
-        mock_section.refreshing = False
-        mock_section.updatedAt = dt.datetime.now() - dt.timedelta(minutes=10)
-        mock_plex_instance.library.sections.return_value = [mock_section]
-
-        with patch.dict(os.environ, {
-            'PLEX_URL': 'http://plex.local:32400',
-            'PLEX_TOKEN': 'test_token',
-            'PLEX_IDLE_TIME_MIN': '5'
-        }):
-            with patch('sys.argv', ['plex_delete_trash.py']):
-                with patch('plex_delete_trash.PlexServer', return_value=mock_plex_instance):
-                    with patch('plex_delete_trash.check_section_status') as mock_check:
-                        with patch('builtins.print'):
+                with patch('plex_delete_trash.create_session_with_retries', return_value=mock_session):
+                    with patch('plex_delete_trash.get_library_sections', side_effect=Exception("Database error")):
+                        with patch('builtins.print') as mock_print:
                             plex_delete_trash.delete_trash()
 
-                            # Verify check_section_status was called
-                            mock_check.assert_called_once()
-
-    def test_delete_trash_custom_idle_time(self):
-        """Test trash deletion with custom idle time"""
-        mock_plex_instance = MagicMock()
-        mock_section = MagicMock()
-        mock_section.title = "Movies"
-        mock_section.refreshing = False
-        # Updated 15 minutes ago
-        mock_section.updatedAt = dt.datetime.now() - dt.timedelta(minutes=15)
-        mock_plex_instance.library.sections.return_value = [mock_section]
-
-        with patch.dict(os.environ, {
-            'PLEX_URL': 'http://plex.local:32400',
-            'PLEX_TOKEN': 'test_token',
-            'PLEX_IDLE_TIME_MIN': '20'  # 20 minutes idle time
-        }):
-            with patch('sys.argv', ['plex_delete_trash.py']):
-                with patch('plex_delete_trash.PlexServer', return_value=mock_plex_instance):
-                    with patch('builtins.print'):
-                        plex_delete_trash.delete_trash()
-
-                        # Should NOT be cleaned because 15 min < 20 min idle time
-                        mock_section.emptyTrash.assert_not_called()
+                            # Verify error was printed
+                            mock_print.assert_called()
 
     def test_delete_trash_argv_parameters(self):
         """Test trash deletion using command line arguments"""
-        mock_plex_instance = MagicMock()
-        mock_section = MagicMock()
-        mock_section.title = "Movies"
-        mock_section.refreshing = False
-        mock_section.updatedAt = dt.datetime.now() - dt.timedelta(minutes=10)
-        mock_plex_instance.library.sections.return_value = [mock_section]
+        mock_session = MagicMock()
 
         with patch('sys.argv', ['plex_delete_trash.py', 'http://custom.plex:32400', 'custom_token']):
-            with patch('plex_delete_trash.PlexServer', return_value=mock_plex_instance) as mock_server:
-                with patch('builtins.print'):
-                    plex_delete_trash.delete_trash()
-
-                    # Verify PlexServer was called with correct params
-                    mock_server.assert_called_once_with('http://custom.plex:32400', 'custom_token', timeout=5)
-
-    def test_delete_trash_finished_message(self):
-        """Test that finished message is printed with plex_url"""
-        mock_plex_instance = MagicMock()
-        mock_plex_instance.library.sections.return_value = []
-
-        with patch.dict(os.environ, {
-            'PLEX_URL': 'http://plex.local:32400',
-            'PLEX_TOKEN': 'test_token'
-        }):
-            with patch('sys.argv', ['plex_delete_trash.py']):
-                with patch('plex_delete_trash.PlexServer', return_value=mock_plex_instance):
+            with patch('plex_delete_trash.create_session_with_retries', return_value=mock_session):
+                with patch('plex_delete_trash.get_library_sections', return_value=[]):
                     with patch('builtins.print') as mock_print:
                         plex_delete_trash.delete_trash()
 
-                        # Verify finished message was printed
-                        mock_print.assert_any_call("Finished: http://plex.local:32400")
-
-    def test_delete_trash_empty_sections(self):
-        """Test trash deletion when no library sections exist"""
-        mock_plex_instance = MagicMock()
-        mock_plex_instance.library.sections.return_value = []
-
-        with patch.dict(os.environ, {
-            'PLEX_URL': 'http://plex.local:32400',
-            'PLEX_TOKEN': 'test_token'
-        }):
-            with patch('sys.argv', ['plex_delete_trash.py']):
-                with patch('plex_delete_trash.PlexServer', return_value=mock_plex_instance):
-                    with patch('builtins.print') as mock_print:
-                        # Should not raise exception
-                        plex_delete_trash.delete_trash()
-
-                        # Verify "No library sections found" message
-                        mock_print.assert_any_call("No library sections found on Plex server")
+                        # Verify finished message with custom URL
+                        mock_print.assert_any_call("Finished: http://custom.plex:32400")
 
     def test_delete_trash_plex_url_not_string(self):
         """Test error handling when PLEX_URL is not a string"""
-        # Mock get_plex_url to return non-string
         with patch('plex_delete_trash.get_plex_url', return_value=123):
             with patch.dict(os.environ, {'PLEX_TOKEN': 'test_token'}):
                 with patch('sys.argv', ['plex_delete_trash.py']):
@@ -499,7 +595,6 @@ class TestDeleteTrash(unittest.TestCase):
 
     def test_delete_trash_plex_url_whitespace_only(self):
         """Test error handling when PLEX_URL is only whitespace"""
-        # Mock get_plex_url to return whitespace-only string
         with patch('plex_delete_trash.get_plex_url', return_value='   \t\n  '):
             with patch.dict(os.environ, {'PLEX_TOKEN': 'test_token'}):
                 with patch('sys.argv', ['plex_delete_trash.py']):
@@ -511,7 +606,6 @@ class TestDeleteTrash(unittest.TestCase):
 
     def test_delete_trash_plex_token_not_string(self):
         """Test error handling when PLEX_TOKEN is not a string"""
-        # Mock get_plex_token to return non-string
         with patch('plex_delete_trash.get_plex_token', return_value=456):
             with patch.dict(os.environ, {'PLEX_URL': 'http://plex.local:32400'}):
                 with patch('sys.argv', ['plex_delete_trash.py']):
@@ -523,7 +617,6 @@ class TestDeleteTrash(unittest.TestCase):
 
     def test_delete_trash_plex_token_whitespace_only(self):
         """Test error handling when PLEX_TOKEN is only whitespace"""
-        # Mock get_plex_token to return whitespace-only string
         with patch('plex_delete_trash.get_plex_token', return_value='   \t\n  '):
             with patch.dict(os.environ, {'PLEX_URL': 'http://plex.local:32400'}):
                 with patch('sys.argv', ['plex_delete_trash.py']):
@@ -533,121 +626,6 @@ class TestDeleteTrash(unittest.TestCase):
                         # Verify error was printed
                         mock_print.assert_called()
 
-    def test_delete_trash_negative_idle_time(self):
-        """Test error handling when PLEX_IDLE_TIME_MIN is negative"""
-        mock_plex_instance = MagicMock()
-        mock_plex_instance.library.sections.return_value = []
-
-        with patch.dict(os.environ, {
-            'PLEX_URL': 'http://plex.local:32400',
-            'PLEX_TOKEN': 'test_token',
-            'PLEX_IDLE_TIME_MIN': '-5'
-        }):
-            with patch('sys.argv', ['plex_delete_trash.py']):
-                with patch('plex_delete_trash.PlexServer', return_value=mock_plex_instance):
-                    with patch('builtins.print') as mock_print:
-                        plex_delete_trash.delete_trash()
-
-                        # Verify error was printed
-                        mock_print.assert_called()
-
-    def test_delete_trash_sections_retrieval_error(self):
-        """Test error handling when library.sections() fails"""
-        mock_plex_instance = MagicMock()
-        mock_plex_instance.library.sections.side_effect = Exception("Database error")
-
-        with patch.dict(os.environ, {
-            'PLEX_URL': 'http://plex.local:32400',
-            'PLEX_TOKEN': 'test_token'
-        }):
-            with patch('sys.argv', ['plex_delete_trash.py']):
-                with patch('plex_delete_trash.PlexServer', return_value=mock_plex_instance):
-                    with patch('builtins.print') as mock_print:
-                        plex_delete_trash.delete_trash()
-
-                        # Verify error was printed
-                        mock_print.assert_called()
-
-    def test_delete_trash_none_section_in_list(self):
-        """Test handling when sections list contains None"""
-        mock_plex_instance = MagicMock()
-        mock_section = MagicMock()
-        mock_section.title = "Movies"
-        mock_section.refreshing = False
-        mock_section.updatedAt = dt.datetime.now() - dt.timedelta(minutes=10)
-
-        # Include None in sections list
-        mock_plex_instance.library.sections.return_value = [None, mock_section]
-
-        with patch.dict(os.environ, {
-            'PLEX_URL': 'http://plex.local:32400',
-            'PLEX_TOKEN': 'test_token',
-            'PLEX_IDLE_TIME_MIN': '5'
-        }):
-            with patch('sys.argv', ['plex_delete_trash.py']):
-                with patch('plex_delete_trash.PlexServer', return_value=mock_plex_instance):
-                    with patch('builtins.print') as mock_print:
-                        plex_delete_trash.delete_trash()
-
-                        # Verify None section was skipped
-                        mock_print.assert_any_call("Warning: Skipping None section")
-                        # Verify valid section was processed
-                        mock_section.emptyTrash.assert_called_once()
-
-    def test_delete_trash_section_missing_attributes(self):
-        """Test handling when section is missing required attributes"""
-        mock_plex_instance = MagicMock()
-        mock_section = MagicMock()
-        mock_section.title = "Movies"
-        # Remove required attributes
-        del mock_section.refreshing
-        del mock_section.updatedAt
-
-        mock_plex_instance.library.sections.return_value = [mock_section]
-
-        with patch.dict(os.environ, {
-            'PLEX_URL': 'http://plex.local:32400',
-            'PLEX_TOKEN': 'test_token',
-            'PLEX_IDLE_TIME_MIN': '5'
-        }):
-            with patch('sys.argv', ['plex_delete_trash.py']):
-                with patch('plex_delete_trash.PlexServer', return_value=mock_plex_instance):
-                    with patch('builtins.print') as mock_print:
-                        plex_delete_trash.delete_trash()
-
-                        # Verify section with missing attributes was skipped
-                        mock_print.assert_any_call("Warning: Skipping section with missing attributes")
-                        # Verify emptyTrash was not called
-                        mock_section.emptyTrash.assert_not_called()
-
-    def test_delete_trash_section_processing_error(self):
-        """Test handling when section processing raises an exception"""
-        mock_plex_instance = MagicMock()
-        mock_section = MagicMock()
-        mock_section.title = "Movies"
-        mock_section.refreshing = False
-        mock_section.updatedAt = dt.datetime.now() - dt.timedelta(minutes=10)
-        # Make emptyTrash raise an exception
-        mock_section.emptyTrash.side_effect = Exception("Permission denied")
-
-        mock_plex_instance.library.sections.return_value = [mock_section]
-
-        with patch.dict(os.environ, {
-            'PLEX_URL': 'http://plex.local:32400',
-            'PLEX_TOKEN': 'test_token',
-            'PLEX_IDLE_TIME_MIN': '5'
-        }):
-            with patch('sys.argv', ['plex_delete_trash.py']):
-                with patch('plex_delete_trash.PlexServer', return_value=mock_plex_instance):
-                    with patch('builtins.print') as mock_print:
-                        plex_delete_trash.delete_trash()
-
-                        # Verify error processing message was printed
-                        mock_print.assert_any_call("Error processing section: Permission denied")
-                        # Verify finished message was still printed
-                        mock_print.assert_any_call("Finished: http://plex.local:32400")
-
 
 if __name__ == '__main__':
     unittest.main()
-

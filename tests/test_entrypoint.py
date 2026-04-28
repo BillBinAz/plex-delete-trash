@@ -1,8 +1,8 @@
 import unittest
-import subprocess
 import os
 import tempfile
 import shutil
+import re
 
 
 class TestEntrypoint(unittest.TestCase):
@@ -13,7 +13,7 @@ class TestEntrypoint(unittest.TestCase):
         self.temp_dir = tempfile.mkdtemp()
         self.test_cron_file = os.path.join(self.temp_dir, 'cron-job')
         self.test_env_file = os.path.join(self.temp_dir, 'container_env.sh')
-        
+
     def tearDown(self):
         """Clean up test fixtures"""
         if os.path.exists(self.temp_dir):
@@ -43,7 +43,7 @@ class TestEntrypoint(unittest.TestCase):
             ('"*/15 4 * * *"', '*/15 4 * * *'),
             ("'*/15 4 * * *'", "*/15 4 * * *"),
         ]
-        
+
         for input_schedule, expected_output in test_cases:
             # Simulate quote removal with tr -d '"'
             result = input_schedule.replace('"', '')
@@ -54,8 +54,9 @@ class TestEntrypoint(unittest.TestCase):
         """Test sed replacement logic on a test cron file"""
         # Create a test cron file
         with open(self.test_cron_file, 'w') as f:
-            f.write("SED-TARGET . /app/container_env.sh; /usr/local/bin/python3 /app/plex_delete_trash.py\n")
-        
+            f.write("SED-TARGET . /app/container_env.sh; "
+                    "/usr/local/bin/python3 /app/plex_delete_trash.py\n")
+
         # Read original content
         with open(self.test_cron_file, 'r') as f:
             original_content = f.read()
@@ -94,7 +95,6 @@ class TestEntrypoint(unittest.TestCase):
         entrypoint_path = os.path.join(os.path.dirname(__file__), '..', 'src', 'entrypoint.sh')
         if os.path.exists(entrypoint_path):
             # Check if file has execute permission
-            mode = os.stat(entrypoint_path).st_mode
             # On Windows, this will always be true for .sh files
             self.assertTrue(os.path.isfile(entrypoint_path))
 
@@ -120,7 +120,6 @@ class TestEntrypoint(unittest.TestCase):
 
     def test_valid_cron_field_formats(self):
         """Test that cron fields contain valid characters"""
-        import re
         # Pattern from entrypoint.sh: ([0-9\/\*,-]+[[:space:]]+){4}[0-9\/\*,-]+
         # Simplified for Python
         cron_field_pattern = r'^[0-9/*,\-\s]+$'
@@ -137,9 +136,7 @@ class TestEntrypoint(unittest.TestCase):
 
     def test_invalid_cron_formats(self):
         """Test that invalid cron formats are rejected"""
-        import re
-        cron_field_pattern = r'^[0-9/*,\-\s]+$'
-        
+
         invalid_formats = [
             "invalid",
             "a b c d e",
