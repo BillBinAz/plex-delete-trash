@@ -2,8 +2,7 @@ import unittest
 import sys
 import os
 import datetime as dt
-from unittest.mock import patch, MagicMock, call, mock_open
-from io import StringIO
+from unittest.mock import patch, MagicMock
 import xml.etree.ElementTree as ET
 
 # Add src to path so we can import the module
@@ -371,7 +370,8 @@ class TestProcessSections(unittest.TestCase):
 
         with patch('builtins.print') as mock_print:
             plex_delete_trash._process_sections([], 'http://plex.local:32400', 'token123', 5.0, mock_session)
-            mock_print.assert_called_once_with("No library sections found on Plex server")
+            mock_print.assert_called_once_with(
+                "No library sections found on Plex server")
 
     def test_process_sections_none_section(self):
         """Test processing with None section in list"""
@@ -379,7 +379,8 @@ class TestProcessSections(unittest.TestCase):
 
         with patch('builtins.print') as mock_print:
             plex_delete_trash._process_sections([None], 'http://plex.local:32400', 'token123', 5.0, mock_session)
-            mock_print.assert_any_call("Warning: Skipping None section")
+            mock_print.assert_any_call(
+                "Warning: Skipping None section")
 
     def test_process_sections_missing_attributes(self):
         """Test processing section with missing attributes"""
