@@ -1,6 +1,6 @@
 # Plex-Delete-Trash
 
-Automatically empty trash in all Plex Media Server libraries on a scheduled basis using [plexapi](https://github.com/pushingkarmaorg/python-plexapi).
+Automatically empty trash in all Plex Media Server libraries on a scheduled basis using [plex api](https://developer.plex.tv/pms/#section/API-Info).
 
 ## Features
 
