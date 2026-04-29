@@ -1,3 +1,23 @@
+"""Comprehensive test suite for plex_delete_trash module
+
+This module provides extensive unit testing for the Plex Delete Trash utility,
+covering all functions and edge cases. Tests include:
+
+- Credential retrieval and validation
+- REST API session management with retry logic
+- Type conversion with safe defaults
+- Library section retrieval and parsing
+- Trash emptying operations
+- Integration tests for the main delete_trash function
+
+Test Coverage:
+- Success paths with valid inputs
+- Error handling for invalid inputs
+- Edge cases (empty strings, None values, invalid types)
+- XML parsing and API response handling
+- Credential validation and type checking
+"""
+
 import unittest
 import sys
 import os
