@@ -1,3 +1,16 @@
+"""Test cases for entrypoint.sh script
+
+This module tests the Docker entrypoint script responsible for setting up
+cron jobs and environment variables for the Plex Delete Trash utility when
+running inside a container.
+
+Tests verify:
+- Cron schedule configuration and validation
+- File placeholder replacement logic
+- Environment variable handling
+- Script accessibility and structure
+"""
+
 import unittest
 import os
 import tempfile
@@ -175,9 +188,6 @@ class TestEntrypoint(unittest.TestCase):
             self.assertIn("PLEX_URL", content, "Should reference PLEX_URL environment variable")
             self.assertIn("Starting Plex-Delete-Trash", content, "Should have startup message")
 
-    def test_placeholder(self):
-        """Placeholder test"""
-        assert True
 
-    if __name__ == '__main__':
-        unittest.main()
+if __name__ == '__main__':
+    unittest.main()

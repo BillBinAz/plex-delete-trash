@@ -1,3 +1,26 @@
+"""Plex Delete Trash Utility
+
+A Python utility that automatically empties trash for Plex Media Server libraries
+that have been idle for a specified time period. Uses the Plex REST API for direct
+server communication without external media server library dependencies.
+
+Features:
+- Direct REST API integration with Plex Media Server
+- Configurable idle time threshold for trash deletion
+- Automatic retry logic with exponential backoff
+- Comprehensive input validation and error handling
+- Support for environment variables or command-line arguments
+
+Environment Variables:
+- PLEX_URL: Base URL of Plex Media Server (required)
+- PLEX_TOKEN: Plex API authentication token (required)
+- PLEX_IDLE_TIME_MIN: Minutes of inactivity before trash deletion (default: 5)
+
+Usage:
+- With environment variables: python plex_delete_trash.py
+- With command-line args: python plex_delete_trash.py <plex_url> <plex_token>
+"""
+
 import os
 import sys
 import datetime as dt
@@ -8,14 +31,17 @@ import xml.etree.ElementTree as ET
 
 
 def get_plex_url():
-    """Get Plex URL from command line arguments or environment variable.
-    Supports two modes:
-    - No arguments: reads from PLEX_URL environment variable
-    - With arguments: reads from command line (requires both URL and token)
+    """Retrieve Plex server URL from arguments or environment.
+
+    Supports two modes of operation:
+    1. No arguments: reads PLEX_URL from environment variable
+    2. With arguments: reads from command line (requires both URL and token)
+
     Returns:
         str: Plex URL from sys.argv[1] or PLEX_URL environment variable
+
     Raises:
-        Exception: If insufficient command line arguments provided
+        Exception: If command line arguments count is not 1 or 3
     """
     if len(sys.argv) == 1:
         return os.environ.get('PLEX_URL')
@@ -26,14 +52,17 @@ def get_plex_url():
 
 
 def get_plex_token():
-    """Get Plex token from command line arguments or environment variable.
-    Supports two modes:
-    - No arguments: reads from PLEX_TOKEN environment variable
-    - With arguments: reads from command line (requires both URL and token)
+    """Retrieve Plex authentication token from arguments or environment.
+
+    Supports two modes of operation:
+    1. No arguments: reads PLEX_TOKEN from environment variable
+    2. With arguments: reads from command line (requires both URL and token)
+
     Returns:
         str: Plex token from sys.argv[2] or PLEX_TOKEN environment variable
+
     Raises:
-        Exception: If insufficient command line arguments provided
+        Exception: If command line arguments count is not 1 or 3
     """
     if len(sys.argv) == 1:
         return os.environ.get('PLEX_TOKEN')
@@ -44,9 +73,14 @@ def get_plex_token():
 
 
 def create_session_with_retries():
-    """Create a requests session with retry strategy.
+    """Create requests session with automatic retry strategy.
+
+    Configures HTTP adapter with exponential backoff for handling transient
+    failures including rate limiting (429) and server errors (500-504).
+
     Returns:
-        requests.Session: Session with retry strategy configured
+        requests.Session: Configured session with retry strategy mounted
+                         on both HTTP and HTTPS adapters
     """
     session = requests.Session()
     retry_strategy = Retry(
@@ -62,14 +96,20 @@ def create_session_with_retries():
 
 
 def safe_float(value, default=0.0):
-    """Safely convert a value to float with a fallback default.
+    """Safely convert value to float with fallback default.
+
+    Attempts to convert the input value to float. If conversion fails or
+    value is None, returns the specified default value.
+
     Args:
-        value: Value to convert to float
+        value: Value to convert to float (str, int, float, or None)
         default: Default value if conversion fails (must be numeric)
+
     Returns:
         float: Converted value or default if conversion fails
+
     Raises:
-        TypeError: If default is not a number
+        TypeError: If default parameter is not a number (int or float)
     """
     if not isinstance(default, (int, float)):
         raise TypeError(f"Default must be a number, got {type(default).__name__}")
@@ -82,15 +122,25 @@ def safe_float(value, default=0.0):
 
 
 def get_library_sections(plex_url, plex_token, session):
-    """Get library sections from Plex server via REST API.
+    """Retrieve library sections from Plex server via REST API.
+
+    Makes HTTP GET request to /library/sections endpoint and parses
+    the XML response to extract section metadata.
+
     Args:
-        plex_url: URL of Plex server
-        plex_token: Plex authentication token
-        session: requests.Session object
+        plex_url (str): Base URL of Plex Media Server
+        plex_token (str): Plex API authentication token
+        session (requests.Session): Session with retry configuration
+
     Returns:
-        list: List of section dictionaries with keys: id, title, refreshing, updatedAt
+        list: List of dictionaries, each containing:
+              - id (str): Section ID
+              - title (str): Section display name
+              - refreshing (bool): Whether section is currently refreshing
+              - updatedAt (int): Unix timestamp of last library update
+
     Raises:
-        Exception: If API request fails or response parsing fails
+        Exception: If API request fails or response XML parsing fails
     """
     url = f"{plex_url}/library/sections"
     headers = {"X-Plex-Token": plex_token}
@@ -116,14 +166,19 @@ def get_library_sections(plex_url, plex_token, session):
 
 
 def verify_section_status(plex_url, plex_token, section_id, session):
-    """Verify that a library section exists on the Plex server.
+    """Verify that a library section exists and is accessible.
+
+    Makes HTTP GET request to /library/sections/{id} endpoint to confirm
+    the section exists and is accessible with provided authentication.
+
     Args:
-        plex_url: URL of Plex server
-        plex_token: Plex authentication token
-        section_id: ID of the library section
-        session: requests.Session object
+        plex_url (str): Base URL of Plex Media Server
+        plex_token (str): Plex API authentication token
+        section_id (str): ID of the library section to verify
+        session (requests.Session): Session with retry configuration
+
     Raises:
-        Exception: If section does not exist or verification fails
+        Exception: If section_id is invalid or section is not accessible
     """
     if not section_id:
         raise Exception("Section ID is invalid")
@@ -139,14 +194,19 @@ def verify_section_status(plex_url, plex_token, section_id, session):
 
 
 def empty_trash(plex_url, plex_token, section_id, session):
-    """Empty trash for a library section via REST API.
+    """Empty trash for a library section via Plex REST API.
+
+    Makes HTTP PUT request to /library/sections/{id}/emptyTrash endpoint
+    to remove all deleted items from the specified library section.
+
     Args:
-        plex_url: URL of Plex server
-        plex_token: Plex authentication token
-        section_id: ID of the library section
-        session: requests.Session object
+        plex_url (str): Base URL of Plex Media Server
+        plex_token (str): Plex API authentication token
+        section_id (str): ID of the library section to empty
+        session (requests.Session): Session with retry configuration
+
     Raises:
-        Exception: If API request fails
+        Exception: If API request fails or section is not accessible
     """
     url = f"{plex_url}/library/sections/{section_id}/emptyTrash"
     headers = {"X-Plex-Token": plex_token}
@@ -159,12 +219,22 @@ def empty_trash(plex_url, plex_token, section_id, session):
 
 
 def _validate_credentials(plex_url, plex_token):
-    """Validate and normalize Plex credentials.
+    """Validate and normalize Plex server credentials.
+
+    Performs comprehensive validation including:
+    - Checks that credentials are not None
+    - Verifies credentials are string type
+    - Strips whitespace and validates non-empty after stripping
+
     Args:
-        plex_url: URL of Plex server
-        plex_token: Plex authentication token
+        plex_url (str): Base URL of Plex Media Server
+        plex_token (str): Plex API authentication token
+
+    Returns:
+        tuple: (plex_url, plex_token) both validated and whitespace-trimmed
+
     Raises:
-        Exception: If credentials are invalid
+        Exception: If either credential is None, not a string, or whitespace-only
     """
     if not plex_url:
         raise Exception("plex_url not set")
@@ -184,13 +254,25 @@ def _validate_credentials(plex_url, plex_token):
 
 
 def _process_sections(sections, plex_url, plex_token, idle_time, session):
-    """Process library sections and empty trash if needed.
+    """Process library sections and empty trash for idle sections.
+
+    Iterates through library sections and determines which need trash emptying
+    based on refresh status and idle time. A section is eligible for trash
+    emptying when:
+    - It is not currently refreshing/scanning
+    - Its last update is older than the idle_time threshold
+
     Args:
-        sections: List of section dictionaries
-        plex_url: URL of Plex server
-        plex_token: Plex authentication token
-        idle_time: Minimum idle time in minutes
-        session: requests.Session object
+        sections (list): List of section dictionaries to process
+        plex_url (str): Base URL of Plex Media Server
+        plex_token (str): Plex API authentication token
+        idle_time (float): Minimum idle time in minutes before emptying trash
+        session (requests.Session): Session with retry configuration
+
+    Note:
+        - Logs warnings for invalid sections and skips them
+        - Logs errors during processing but continues with other sections
+        - Prints status messages for each section processed
     """
     if not sections:
         print("No library sections found on Plex server")
@@ -222,36 +304,66 @@ def _process_sections(sections, plex_url, plex_token, idle_time, session):
 
 
 def delete_trash():
-    """Main function to empty trash in Plex library sections.
-    Connects to Plex server via REST API and empties trash for sections that:
-    - Are not currently being scanned/refreshed
-    - Have not been updated within the idle time window
-    Configuration via environment variables:
-    - PLEX_URL: URL of Plex server (required)
-    - PLEX_TOKEN: Plex authentication token (required)
-    - PLEX_IDLE_TIME_MIN: Minimum idle time in minutes (optional, default: 5)
-    Validates:
-    - PLEX_URL is set and not empty
-    - PLEX_TOKEN is set and not empty
-    - PLEX_IDLE_TIME_MIN is a valid non-negative number
+    """Main entry point: connect to Plex server and empty idle library trash.
+
+    Orchestrates the complete trash deletion workflow:
+    1. Retrieves Plex credentials (from environment or command-line)
+    2. Validates credentials format and non-empty values
+    3. Creates HTTP session with retry logic
+    4. Fetches library sections from Plex server
+    5. Processes each section to determine trash deletion eligibility
+    6. Empties trash for sections meeting idle time criteria
+
+    Configuration (via environment variables, with CLI args as override):
+    - PLEX_URL: Plex server URL (required, no default)
+    - PLEX_TOKEN: API authentication token (required, no default)
+    - PLEX_IDLE_TIME_MIN: Idle minutes before trash deletion (default: 5)
+
+    Command-line Usage:
+    - No args: uses environment variables
+    - With args: python script.py <url> <token> (overrides environment)
+
+    Error Handling:
+    - Validates all inputs before making API calls
+    - Catches and logs errors without stopping execution
+    - Prints status messages for each operation performed
+
+    Returns:
+        None: Always returns None, errors are printed to stdout
     """
     plex_url = "Not Set"
     try:
+        # Retrieve credentials from environment or command-line arguments
         plex_url = get_plex_url()
         plex_token = get_plex_token()
+
+        # Validate credentials format and non-empty values
         plex_url, plex_token = _validate_credentials(plex_url, plex_token)
+
+        # Create HTTP session with retry strategy for robustness
         session = create_session_with_retries()
+
+        # Parse idle time configuration with default fallback
         idle_time_str = os.getenv("PLEX_IDLE_TIME_MIN")
         idle_time = safe_float(idle_time_str, 5.0)
+
+        # Validate idle time is non-negative
         if idle_time < 0:
             raise Exception(f"PLEX_IDLE_TIME_MIN must be non-negative, got {idle_time}")
+
+        # Retrieve library sections from Plex server
         try:
             sections = get_library_sections(plex_url, plex_token, session)
         except Exception as e:
             raise Exception(f"Failed to retrieve library sections: {str(e)}")
+
+        # Process sections and empty trash for idle libraries
         _process_sections(sections, plex_url, plex_token, idle_time, session)
+
+        # Print completion message
         print(f"Finished: {plex_url}")
     except Exception as e:
+        # Log errors with timestamp and context
         print(dt.datetime.now().time(), "Unable to empty trash PlexURL:" + str(plex_url) +
               " Error: " + str(e))
     return
