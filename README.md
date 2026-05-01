@@ -83,7 +83,7 @@ python plex_delete_trash.py http://plex.local:32400 your_plex_token_here
 
 #### `PLEX_CRON_SCHEDULE`
 - **Description:** Cron schedule for automatic execution (Docker only)
-- **Default:** `*/15 4 * * *` (every 15 minutes starting at 4 AM)
+- **Default:** `*/15 4 * * *` (every 15 minutes during the 4 AM hour)
 - **Type:** Standard cron format (5 fields)
 - **Example:** `0 2 * * *` (daily at 2 AM)
 - **Reference:** https://crontab.guru/ for cron syntax help
