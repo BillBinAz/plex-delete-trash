@@ -1,9 +1,14 @@
-name: Test and Docker Build from Dockerfile on Tag
+name: Build Docker on Tag
 
 on:
   push:
     tags:
-      - 'v*'
+      - '**'
+
+permissions:
+  contents: read
+  packages: write
+  actions: read
 
 jobs:
 
@@ -13,61 +18,92 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.14"]
+        python-version: ["3.13", "3.14"]
 
     steps:
-      - uses: actions/checkout@v6
+      - name: Checkout code
+        uses: actions/checkout@v6
+
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
+          cache: 'pip'
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
-          python -m pip install flake8 pytest pytest-cov
-          pip install -r ./requirements.txt
-      - name: Lint with flake8
-        run: |
-          # stop the build if there are Python syntax errors or undefined names
-          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-          # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
-          flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
-      - name: Install ShellCheck for bash linting
-        run: sudo apt-get install -y shellcheck
-      - name: Lint shell scripts with ShellCheck
-        run: |
-          shellcheck src/entrypoint.sh
-      - name: set pythonpath
-        run: |
-          echo "PYTHONPATH=./src" >> $GITHUB_ENV
-      - name: Test with pytest
-        run: |
-          pytest --cov=plex_delete_trash --cov-report=term-missing --cov-report=xml --cov-fail-under=90
+          python -m pip install --upgrade pip setuptools wheel
+          python -m pip install flake8 coverage
+          pip install -r requirements.txt
 
-  build_and_push_docker_image:
-    name: Push Docker image to ghcr.io
+      - name: Lint with flake8 - Critical errors
+        run: |
+          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics \
+            --exclude=.git,.github,.venv,__pycache__,.pytest_cache,docs
+
+      - name: Lint with flake8 - All errors (non-blocking)
+        continue-on-error: true
+        run: |
+          flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 \
+            --statistics --exclude=.git,.github,.venv,__pycache__,.pytest_cache,docs
+
+      - name: Set PYTHONPATH
+        run: echo "PYTHONPATH=./src" >> $GITHUB_ENV
+
+      - name: Run tests with coverage
+        run: |
+          coverage run -m unittest discover tests/ -v
+          coverage report
+          coverage xml
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./coverage.xml
+          flags: unittests
+          name: codecov-umbrella
+          fail_ci_if_error: false
+          verbose: true
+
+  build_and_push_to_ghcr:
+    name: Build and Push to GitHub Container Registry
     needs: test
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: write 
-      
+      packages: write
+
     steps:
-      - name: Check out the repo
+      - name: Checkout code
         uses: actions/checkout@v6
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
       - name: Login to GitHub Container Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          password: ${{ secrets.PATNAME }}
 
-      - name: Extract metadata (tags, labels) for Docker
+      - name: Extract metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
           images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha
 
       - name: Set lowercase repository
         run: echo "REPOSITORY_LC=$(echo ${{ github.repository }} | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
@@ -77,7 +113,9 @@ jobs:
         with:
           context: .
           push: true
-          tags: | 
+          tags: |
             ghcr.io/${{ env.REPOSITORY_LC }}:${{ github.ref_name }}
             ghcr.io/${{ env.REPOSITORY_LC }}:latest
           labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

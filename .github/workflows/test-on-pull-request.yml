@@ -1,20 +1,17 @@
-# This workflow will install Python dependencies, run tests and lint with a variety of Python versions
-# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-python
-
-name: Run Tests on Push
+name: Test on Pull Request
 
 on:
-  push:
-    branches:
-      - "*"
-      - "!master"
+  pull_request:
+    branches: [ "develop", "dev", "feature/*", "master" ]
 
 permissions:
   contents: read
+  pull-requests: write
 
 jobs:
+
   test:
-    if: github.event_name != 'pull_request'
+    name: Run Tests
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -73,3 +70,10 @@ jobs:
           name: codecov-umbrella
           fail_ci_if_error: false
           verbose: true
+
+      - name: Add coverage comment to PR
+        if: always()
+        uses: py-cov-action/python-coverage-comment-action@v3
+        with:
+          GITHUB_TOKEN: ${{ github.token }}
+
