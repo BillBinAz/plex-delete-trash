@@ -1,5 +1,7 @@
 """Plex Delete Trash Utility
 
+LF only, no CRLF
+
 A Python utility that automatically empties trash for Plex Media Server libraries
 that have been idle for a specified time period. Uses the Plex REST API for direct
 server communication without external media server library dependencies.
