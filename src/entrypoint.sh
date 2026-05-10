@@ -1,6 +1,6 @@
 #!/bin/bash
 set -euo pipefail
-# LF only, no CRLF
+
 # Configuration constants
 readonly CRON_SCHEDULE_DEFAULT="*/15 4 * * *"
 readonly CRON_REGEX='^([0-9\/\*,-]+[[:space:]]+){4}[0-9\/\*,-]+$'
