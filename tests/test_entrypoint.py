@@ -63,6 +63,16 @@ class TestEntrypoint(unittest.TestCase):
             # For single quotes, we'd need different handling
             self.assertIn(expected_output.replace('"', ''), result)
 
+    def test_entrypoint_script_line_endings(self):
+        """Test the src/entrypoin.sh has FL not CRLF"""
+        entrypoint_path = os.path.join(os.path.dirname(__file__), '..', 'src', 'entrypoint.sh')
+        if os.path.exists(entrypoint_path):
+            with open(entrypoint_path, 'rb') as f:
+                content = f.read()
+            # Check for CRLF (Windows) line endings
+            self.assertNotIn(b'\r\n', content, "entrypoint.sh should have LF line endings, not CRLF")
+
+
     def test_sed_file_replacement_logic(self):
         """Test sed replacement logic on a test cron file"""
         # Create a test cron file
