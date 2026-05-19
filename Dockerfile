@@ -3,7 +3,7 @@ FROM python:3-alpine
 LABEL authors="BillBinAz"
 
 # Install updates
-RUN apk update && apk upgrade && apk add --no-cache busybox-extras bash
+RUN apk update && apk upgrade && apk add --no-cache busybox-extras bash dos2unix
 
 # Set the application working directory
 WORKDIR /app
@@ -17,5 +17,7 @@ COPY src/plex_delete_trash.py .
 COPY cron-job /etc/crontabs/root
 COPY src/entrypoint.sh .
 RUN chmod +x /app/entrypoint.sh
+RUN dos2unix /app/entrypoint.sh
+RUN dos2unix /etc/crontabs/root
 
 ENTRYPOINT ["/app/entrypoint.sh"]
