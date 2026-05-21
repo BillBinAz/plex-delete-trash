@@ -83,6 +83,8 @@ configure_cron_schedule() {
         # Verify replacement was successful
         if grep -q "$schedule_to_use" "$CRON_FILE"; then
             log "Cron schedule configured: $schedule_to_use"
+            echo "$(cat "$CRON_FILE")"
+            
         else
             error_exit "Failed to verify cron schedule replacement"
         fi
