@@ -74,22 +74,19 @@ configure_cron_schedule() {
     fi
 
     # Verify SED_TARGET exists in cron file
-    if ! grep -q "$SED_TARGET" "$CRON_FILE"; then
-        error_exit "Placeholder '$SED_TARGET' not found in $CRON_FILE. File may be corrupted."
-    fi
-
-    # Replace placeholder with actual schedule
-    if sed -i "s|$SED_TARGET|$schedule_to_use|g" "$CRON_FILE"; then
-        # Verify replacement was successful
-        if grep -q "$schedule_to_use" "$CRON_FILE"; then
-            log "Cron schedule configured: $schedule_to_use"
-            echo "$(cat "$CRON_FILE")"
-            
+    if grep -q "$SED_TARGET" "$CRON_FILE"; then
+        # Replace placeholder with actual schedule
+        if sed -i "s|$SED_TARGET|$schedule_to_use|g" "$CRON_FILE"; then
+            # Verify replacement was successful
+            if grep -q "$schedule_to_use" "$CRON_FILE"; then
+                log "Cron schedule configured: $schedule_to_use"
+                echo "$(cat "$CRON_FILE")"
+            else
+                error_exit "Failed to verify cron schedule replacement"
+            fi
         else
-            error_exit "Failed to verify cron schedule replacement"
+            error_exit "Failed to update cron schedule in $CRON_FILE"
         fi
-    else
-        error_exit "Failed to update cron schedule in $CRON_FILE"
     fi
 }
 
