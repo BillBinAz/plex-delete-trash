@@ -3,8 +3,7 @@ FROM python:3-alpine
 LABEL authors="BillBinAz"
 
 # Install updates
-RUN apk update && apk upgrade && apk add --no-cache busybox-extras bash dos2unix ca-certificates && update-ca-certificates
-
+RUN apk update && apk upgrade && apk add --no-cache busybox-extras bash dos2unix ca-certificates && update-ca-certificates && rm -rf /var/cache/apk/*
 # Set the application working directory
 WORKDIR /app
 
