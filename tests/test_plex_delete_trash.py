@@ -21,6 +21,7 @@ Test Coverage:
 import unittest
 import sys
 import os
+import importlib.util
 import datetime as dt
 from unittest.mock import patch, MagicMock
 import xml.etree.ElementTree as ET
@@ -111,6 +112,7 @@ class TestGetPlexToken(unittest.TestCase):
 class TestCreateSessionWithRetries(unittest.TestCase):
     """Test cases for create_session_with_retries function"""
 
+    @unittest.skipUnless(importlib.util.find_spec("requests"), "requests dependency not installed")
     def test_create_session_with_retries(self):
         """Test that session is created with proper retry configuration"""
         session = plex_delete_trash.create_session_with_retries()
@@ -127,6 +129,21 @@ class TestCreateSessionWithRetries(unittest.TestCase):
         self.assertEqual(http_adapter.max_retries.total, 3)
         self.assertEqual(http_adapter.max_retries.backoff_factor, 1)
         self.assertEqual(http_adapter.max_retries.status_forcelist, [429, 500, 502, 503, 504])
+        self.assertTrue(session.verify)
+
+    @unittest.skipUnless(importlib.util.find_spec("requests"), "requests dependency not installed")
+    def test_create_session_with_retries_verify_disabled_by_env(self):
+        """Test that certificate verification can be disabled by env var"""
+        with patch.dict(os.environ, {"PLEX_DELETE_VERIFY_CERTS": "false"}):
+            session = plex_delete_trash.create_session_with_retries()
+        self.assertFalse(session.verify)
+
+    @unittest.skipUnless(importlib.util.find_spec("requests"), "requests dependency not installed")
+    def test_create_session_with_retries_verify_enabled_by_env(self):
+        """Test that certificate verification stays enabled when env var is true-ish"""
+        with patch.dict(os.environ, {"PLEX_DELETE_VERIFY_CERTS": "true"}):
+            session = plex_delete_trash.create_session_with_retries()
+        self.assertTrue(session.verify)
 
 
 class TestSafeFloat(unittest.TestCase):

@@ -56,17 +56,17 @@ verify_cron_file() {
 configure_cron_schedule() {
     local schedule_to_use="$CRON_SCHEDULE_DEFAULT"
 
-    if [[ -n "${PLEX_CRON_SCHEDULE:-}" ]]; then
+    if [[ -n "${PLEX_DELETE_CRON_SCHEDULE:-}" ]]; then
         # Remove quotes from the schedule
         local stripped_schedule
-        stripped_schedule=$(echo "$PLEX_CRON_SCHEDULE" | tr -d '"' | tr -d "'")
+        stripped_schedule=$(echo "$PLEX_DELETE_CRON_SCHEDULE" | tr -d '"' | tr -d "'")
 
         # Validate schedule format
         if [[ "$stripped_schedule" =~ $CRON_REGEX ]]; then
             schedule_to_use="$stripped_schedule"
             log "Custom cron schedule provided: $schedule_to_use"
         else
-            log_error "Invalid PLEX_CRON_SCHEDULE format: $stripped_schedule"
+            log_error "Invalid PLEX_DELETE_CRON_SCHEDULE format: $stripped_schedule"
             log "Using default cron schedule: $CRON_SCHEDULE_DEFAULT"
         fi
     else
@@ -128,4 +128,3 @@ main
 
 # Start cron daemon in foreground
 exec crond -f -l 2
-
