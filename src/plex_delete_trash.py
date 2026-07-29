@@ -84,7 +84,7 @@ def create_session_with_retries():
         from requests.adapters import HTTPAdapter
         from urllib3.util.retry import Retry
     except ModuleNotFoundError as e:
-        raise Exception(
+        raise ImportError(
             "Missing dependency 'requests'. Install dependencies with: pip install -r requirements.txt"
         ) from e
 
