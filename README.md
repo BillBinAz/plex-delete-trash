@@ -65,6 +65,7 @@ python plex_delete_trash.py http://plex.local:32400 your_plex_token_here
 - **Example:** `http://plex.local:32400` or `https://plex.example.com:32400`
 - **Type:** String
 - **Required:** Yes
+- **Note:** HTTPS certificate validation is disabled by default.
 
 #### `PLEX_TOKEN`
 - **Description:** Your Plex authentication token
