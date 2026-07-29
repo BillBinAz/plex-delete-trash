@@ -129,6 +129,13 @@ class TestCreateSessionWithRetries(unittest.TestCase):
         self.assertEqual(http_adapter.max_retries.total, 3)
         self.assertEqual(http_adapter.max_retries.backoff_factor, 1)
         self.assertEqual(http_adapter.max_retries.status_forcelist, [429, 500, 502, 503, 504])
+        self.assertTrue(session.verify)
+
+    @unittest.skipUnless(importlib.util.find_spec("requests"), "requests dependency not installed")
+    def test_create_session_verify_disabled_by_env(self):
+        """Test that PLEX_VERIFY_CERTS=false disables TLS verification"""
+        with patch.dict(os.environ, {'PLEX_VERIFY_CERTS': 'false'}):
+            session = plex_delete_trash.create_session_with_retries()
         self.assertFalse(session.verify)
 
 

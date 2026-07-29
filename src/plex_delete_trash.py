@@ -98,7 +98,7 @@ def create_session_with_retries():
     adapter = HTTPAdapter(max_retries=retry_strategy)
     session.mount("http://", adapter)
     session.mount("https://", adapter)
-    session.verify = False
+    session.verify = os.environ.get('PLEX_VERIFY_CERTS', 'true').strip().lower() != 'false'
     return session
 
 
