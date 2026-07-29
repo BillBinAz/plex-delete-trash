@@ -40,7 +40,7 @@ services:
       - PLEX_URL=http://plex.local:32400
       - PLEX_TOKEN=your_plex_token_here
       - PLEX_IDLE_TIME_MIN=15
-      - PLEX_CRON_SCHEDULE="*/15 4 * * *"
+      - PLEX_DELETE_CRON_SCHEDULE="*/15 4 * * *"
       - TZ=America/Phoenix
 ```
 
@@ -65,7 +65,7 @@ python plex_delete_trash.py http://plex.local:32400 your_plex_token_here
 - **Example:** `http://plex.local:32400` or `https://plex.example.com:32400`
 - **Type:** String
 - **Required:** Yes
-- **Note:** HTTPS certificate validation is enabled by default. Set `PLEX_VERIFY_CERTS=false` to disable validation (not recommended; use only for trusted/self-signed setups).
+- **Note:** HTTPS certificate validation is enabled by default. Set `PLEX_DELETE_VERIFY_CERTS=false` to disable validation (not recommended; use only for trusted/self-signed setups).
 
 #### `PLEX_TOKEN`
 - **Description:** Your Plex authentication token
@@ -82,7 +82,13 @@ python plex_delete_trash.py http://plex.local:32400 your_plex_token_here
 - **Example:** `15` to wait 15 minutes after last update
 - **Notes:** Libraries currently being scanned are never cleaned, regardless of this setting
 
-#### `PLEX_CRON_SCHEDULE`
+#### `PLEX_DELETE_VERIFY_CERTS`
+- **Description:** Controls HTTPS certificate verification for Plex API requests
+- **Default:** `true` (verification enabled)
+- **Type:** Boolean-like string (`true`/`false`, `1`/`0`, `on`/`off`, `yes`/`no`)
+- **Example:** `false` to disable certificate verification for trusted self-signed setups
+
+#### `PLEX_DELETE_CRON_SCHEDULE`
 - **Description:** Cron schedule for automatic execution (Docker only)
 - **Default:** `*/15 4 * * *` (every 15 minutes during the 4 AM hour)
 - **Type:** Standard cron format (5 fields)
@@ -149,7 +155,7 @@ environment:
   - PLEX_URL=http://192.168.1.100:32400
   - PLEX_TOKEN=your_token
   - PLEX_IDLE_TIME_MIN=30
-  - PLEX_CRON_SCHEDULE="0 3 * * *"
+  - PLEX_DELETE_CRON_SCHEDULE="0 3 * * *"
 ```
 
 ### Clean Hourly (Aggressive)
@@ -158,7 +164,7 @@ environment:
   - PLEX_URL=http://plex.local:32400
   - PLEX_TOKEN=your_token
   - PLEX_IDLE_TIME_MIN=5
-  - PLEX_CRON_SCHEDULE="0 * * * *"
+  - PLEX_DELETE_CRON_SCHEDULE="0 * * * *"
 ```
 
 ### Auto-run Once on Startup (Manual)

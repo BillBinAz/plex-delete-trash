@@ -15,6 +15,7 @@ Environment Variables:
 - PLEX_URL: Base URL of Plex Media Server (required)
 - PLEX_TOKEN: Plex API authentication token (required)
 - PLEX_IDLE_TIME_MIN: Minutes of inactivity before trash deletion (default: 5)
+- PLEX_DELETE_VERIFY_CERTS: Enable HTTPS certificate verification (default: true)
 
 Usage:
 - With environment variables: python plex_delete_trash.py
@@ -98,7 +99,8 @@ def create_session_with_retries():
     adapter = HTTPAdapter(max_retries=retry_strategy)
     session.mount("http://", adapter)
     session.mount("https://", adapter)
-    session.verify = False
+    verify_certs = os.getenv("PLEX_DELETE_VERIFY_CERTS", "true").strip().lower()
+    session.verify = verify_certs not in {"0", "false", "no", "off"}
     return session
 
 
@@ -325,6 +327,7 @@ def delete_trash():
     - PLEX_URL: Plex server URL (required, no default)
     - PLEX_TOKEN: API authentication token (required, no default)
     - PLEX_IDLE_TIME_MIN: Idle minutes before trash deletion (default: 5)
+    - PLEX_DELETE_VERIFY_CERTS: HTTPS certificate verification (default: true)
 
     Command-line Usage:
     - No args: uses environment variables
