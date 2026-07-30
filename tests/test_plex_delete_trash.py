@@ -115,7 +115,9 @@ class TestCreateSessionWithRetries(unittest.TestCase):
     @unittest.skipUnless(importlib.util.find_spec("requests"), "requests dependency not installed")
     def test_create_session_with_retries(self):
         """Test that session is created with proper retry configuration"""
-        session = plex_delete_trash.create_session_with_retries()
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("PLEX_DELETE_VERIFY_CERTS", None)
+            session = plex_delete_trash.create_session_with_retries()
 
         # Verify it's a requests Session
         self.assertIsInstance(session, type(session))
