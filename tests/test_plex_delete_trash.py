@@ -31,6 +31,14 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 import plex_delete_trash
 
 
+def _assert_printed_with_suffix(test_case, mock_print, expected_suffix):
+    messages = [call.args[0] for call in mock_print.call_args_list if call.args]
+    test_case.assertTrue(
+        any(message.endswith(expected_suffix) for message in messages),
+        f"Expected a log ending with: {expected_suffix}. Got: {messages}",
+    )
+
+
 class TestGetPlexUrl(unittest.TestCase):
     """Test cases for get_plex_url function"""
 
@@ -442,8 +450,7 @@ class TestProcessSections(unittest.TestCase):
 
         with patch('builtins.print') as mock_print:
             plex_delete_trash._process_sections([], 'http://plex.local:32400', 'token123', 5.0, mock_session)
-            mock_print.assert_called_once_with(
-                "No library sections found on Plex server")
+            _assert_printed_with_suffix(self, mock_print, "No library sections found on Plex server")
 
     def test_process_sections_none_section(self):
         """Test processing with None section in list"""
@@ -451,8 +458,7 @@ class TestProcessSections(unittest.TestCase):
 
         with patch('builtins.print') as mock_print:
             plex_delete_trash._process_sections([None], 'http://plex.local:32400', 'token123', 5.0, mock_session)
-            mock_print.assert_any_call(
-                "Warning: Skipping None section")
+            _assert_printed_with_suffix(self, mock_print, "Warning: Skipping None section")
 
     def test_process_sections_missing_attributes(self):
         """Test processing section with missing attributes"""
@@ -461,7 +467,7 @@ class TestProcessSections(unittest.TestCase):
 
         with patch('builtins.print') as mock_print:
             plex_delete_trash._process_sections([section], 'http://plex.local:32400', 'token123', 5.0, mock_session)
-            mock_print.assert_any_call("Warning: Skipping section with missing attributes")
+            _assert_printed_with_suffix(self, mock_print, "Warning: Skipping section with missing attributes")
 
     def test_process_sections_refreshing_section(self):
         """Test processing section that is currently refreshing"""
@@ -475,7 +481,7 @@ class TestProcessSections(unittest.TestCase):
 
         with patch('builtins.print') as mock_print:
             plex_delete_trash._process_sections([section], 'http://plex.local:32400', 'token123', 5.0, mock_session)
-            mock_print.assert_any_call("Library is being scanned: Movies")
+            _assert_printed_with_suffix(self, mock_print, "Library is being scanned: Movies")
 
     def test_process_sections_recently_updated(self):
         """Test processing section updated within idle time"""
@@ -491,7 +497,7 @@ class TestProcessSections(unittest.TestCase):
 
         with patch('builtins.print') as mock_print:
             plex_delete_trash._process_sections([section], 'http://plex.local:32400', 'token123', 5.0, mock_session)
-            mock_print.assert_any_call("Library is being scanned: Movies")
+            _assert_printed_with_suffix(self, mock_print, "Library is being scanned: Movies")
 
     def test_process_sections_old_section(self):
         """Test processing section that should have trash emptied"""
@@ -507,7 +513,7 @@ class TestProcessSections(unittest.TestCase):
 
         with patch('builtins.print') as mock_print:
             plex_delete_trash._process_sections([section], 'http://plex.local:32400', 'token123', 5.0, mock_session)
-            mock_print.assert_any_call("Emptying trash for library: Movies")
+            _assert_printed_with_suffix(self, mock_print, "Emptying trash for library: Movies")
 
     def test_process_sections_verification_failure(self):
         """Test handling of section verification failure"""
@@ -523,7 +529,11 @@ class TestProcessSections(unittest.TestCase):
 
         with patch('builtins.print') as mock_print:
             plex_delete_trash._process_sections([section], 'http://plex.local:32400', 'token123', 5.0, mock_session)
-            mock_print.assert_any_call("Error processing section: Section 1 does not exist or is not accessible: Not found")
+            _assert_printed_with_suffix(
+                self,
+                mock_print,
+                "Error processing section: Section 1 does not exist or is not accessible: Not found",
+            )
 
     def test_process_sections_empty_trash_failure(self):
         """Test handling of empty trash failure"""
@@ -544,7 +554,11 @@ class TestProcessSections(unittest.TestCase):
 
         with patch('builtins.print') as mock_print:
             plex_delete_trash._process_sections([section], 'http://plex.local:32400', 'token123', 5.0, mock_session)
-            mock_print.assert_any_call("Error processing section: Failed to empty trash for section 1: Permission denied")
+            _assert_printed_with_suffix(
+                self,
+                mock_print,
+                "Error processing section: Failed to empty trash for section 1: Permission denied",
+            )
 
 
 class TestDeleteTrash(unittest.TestCase):
@@ -574,7 +588,7 @@ class TestDeleteTrash(unittest.TestCase):
                             plex_delete_trash.delete_trash()
 
                             # Verify finished message
-                            mock_print.assert_any_call("Finished: http://plex.local:32400")
+                            _assert_printed_with_suffix(self, mock_print, "Finished: http://plex.local:32400")
 
     def test_delete_trash_missing_plex_url(self):
         """Test error handling when PLEX_URL is not set"""
@@ -652,7 +666,7 @@ class TestDeleteTrash(unittest.TestCase):
                         plex_delete_trash.delete_trash()
 
                         # Verify finished message with custom URL
-                        mock_print.assert_any_call("Finished: http://custom.plex:32400")
+                        _assert_printed_with_suffix(self, mock_print, "Finished: http://custom.plex:32400")
 
     def test_delete_trash_strips_quoted_plex_url(self):
         """Test quoted PLEX_URL values are normalized before API calls"""

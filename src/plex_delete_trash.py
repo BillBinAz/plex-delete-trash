@@ -28,6 +28,12 @@ import datetime as dt
 import xml.etree.ElementTree as ET
 
 
+def log(message):
+    """Log a message with a consistent timestamp prefix."""
+    timestamp = dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    print(f"[{timestamp}] {message}")
+
+
 def get_plex_url():
     """Retrieve Plex server URL from arguments or environment.
 
@@ -308,16 +314,16 @@ def _process_sections(sections, plex_url, plex_token, idle_time, session):
         - Prints status messages for each section processed
     """
     if not sections:
-        print("No library sections found on Plex server")
+        log("No library sections found on Plex server")
         return
     current_time = dt.datetime.now()
     for section in sections:
         try:
             if section is None:
-                print("Warning: Skipping None section")
+                log("Warning: Skipping None section")
                 continue
             if 'id' not in section or 'title' not in section:
-                print("Warning: Skipping section with missing attributes")
+                log("Warning: Skipping section with missing attributes")
                 continue
             section_id = section['id']
             section_title = section['title']
@@ -326,13 +332,13 @@ def _process_sections(sections, plex_url, plex_token, idle_time, session):
             section_updated = dt.datetime.fromtimestamp(updated_at)
             idle_threshold = current_time - dt.timedelta(minutes=idle_time)
             if not is_refreshing and section_updated <= idle_threshold:
-                print(f"Emptying trash for library: {section_title}")
+                log(f"Emptying trash for library: {section_title}")
                 verify_section_status(plex_url, plex_token, section_id, session)
                 empty_trash(plex_url, plex_token, section_id, session)
             else:
-                print(f"Library is being scanned: {section_title}")
+                log(f"Library is being scanned: {section_title}")
         except Exception as e:
-            print(f"Error processing section: {str(e)}")
+            log(f"Error processing section: {str(e)}")
             continue
 
 
@@ -395,11 +401,10 @@ def delete_trash():
         _process_sections(sections, plex_url, plex_token, idle_time, session)
 
         # Print completion message
-        print(f"Finished: {plex_url}")
+        log(f"Finished: {plex_url}")
     except Exception as e:
         # Log errors with timestamp and context
-        print(dt.datetime.now().time(), "Unable to empty trash PlexURL:" + str(plex_url) +
-              " Error: " + str(e))
+        log("Unable to empty trash PlexURL:" + str(plex_url) + " Error: " + str(e))
     return
 
 

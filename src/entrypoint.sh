@@ -20,6 +20,13 @@ log_error() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] ERROR: $*" >&2
 }
 
+log_file_contents() {
+    local file_path="$1"
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        log "$line"
+    done < "$file_path"
+}
+
 get_image_tag() {
     local image_tag="unknown"
 
@@ -120,7 +127,6 @@ configure_cron_schedule() {
             # Verify replacement was successful
             if grep -q "$schedule_to_use" "$CRON_FILE"; then
                 log "Cron schedule configured: $schedule_to_use"
-                echo "$(cat "$CRON_FILE")"
             else
                 error_exit "Failed to verify cron schedule replacement"
             fi
@@ -157,6 +163,12 @@ main() {
     # Configure cron schedule
     configure_cron_schedule
 
+    # Display configuration summary
+    show_configuration
+
+    log "Entrypoint configuration complete. Starting cron daemon..."
+    log "=========================================================="
+
     # Run the cleanup once immediately if requested
     if should_run_on_startup; then
         run_startup_job
@@ -164,11 +176,7 @@ main() {
         log "Startup run disabled; set ${RUN_ON_STARTUP_ENV_VAR}=true to enable"
     fi
 
-    # Display configuration summary
-    show_configuration
 
-    log "Entrypoint configuration complete. Starting cron daemon..."
-    log "=========================================================="
 }
 
 # Run main function
