@@ -130,6 +130,22 @@ def safe_float(value, default=0.0):
         return float(default)
 
 
+def _strip_wrapping_quotes(value):
+    """Trim whitespace and remove matching surrounding quote characters.
+
+    This allows configuration values like `"https://plex.local:32400"` to be
+    normalized into `https://plex.local:32400`.
+    """
+    normalized_value = value.strip()
+    while (
+        len(normalized_value) >= 2 and
+        normalized_value[0] == normalized_value[-1] and
+        normalized_value[0] in {'"', "'"}
+    ):
+        normalized_value = normalized_value[1:-1].strip()
+    return normalized_value
+
+
 def get_library_sections(plex_url, plex_token, session):
     """Retrieve library sections from Plex server via REST API.
 
@@ -249,14 +265,14 @@ def _validate_credentials(plex_url, plex_token):
         raise Exception("plex_url not set")
     if not isinstance(plex_url, str):
         raise Exception(f"plex_url must be string, got {type(plex_url).__name__}")
-    plex_url = plex_url.strip()
+    plex_url = _strip_wrapping_quotes(plex_url)
     if not plex_url:
         raise Exception("plex_url cannot be empty or whitespace")
     if not plex_token:
         raise Exception("plex_token not set")
     if not isinstance(plex_token, str):
         raise Exception(f"plex_token must be string, got {type(plex_token).__name__}")
-    plex_token = plex_token.strip()
+    plex_token = _strip_wrapping_quotes(plex_token)
     if not plex_token:
         raise Exception("plex_token cannot be empty or whitespace")
     return plex_url, plex_token

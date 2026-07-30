@@ -361,6 +361,14 @@ class TestValidateCredentials(unittest.TestCase):
         result = plex_delete_trash._validate_credentials('http://plex.local:32400', 'token123')
         self.assertEqual(result, ('http://plex.local:32400', 'token123'))
 
+    def test_validate_credentials_strips_wrapping_quotes(self):
+        """Test validation strips matching wrapping quotes from URL and token"""
+        result = plex_delete_trash._validate_credentials(
+            '  "https://plex.local:32400"  ',
+            "  'token123'  "
+        )
+        self.assertEqual(result, ('https://plex.local:32400', 'token123'))
+
     def test_validate_credentials_url_none(self):
         """Test validation with None URL"""
         with self.assertRaises(Exception) as context:
@@ -618,6 +626,21 @@ class TestDeleteTrash(unittest.TestCase):
 
                         # Verify finished message with custom URL
                         mock_print.assert_any_call("Finished: http://custom.plex:32400")
+
+    def test_delete_trash_strips_quoted_plex_url(self):
+        """Test quoted PLEX_URL values are normalized before API calls"""
+        mock_session = MagicMock()
+
+        with patch.dict(os.environ, {
+            'PLEX_URL': '  "https://plex.local:32400"  ',
+            'PLEX_TOKEN': 'test_token'
+        }):
+            with patch('sys.argv', ['plex_delete_trash.py']):
+                with patch('plex_delete_trash.create_session_with_retries', return_value=mock_session):
+                    with patch('plex_delete_trash.get_library_sections', return_value=[]) as mock_get_sections:
+                        with patch('builtins.print'):
+                            plex_delete_trash.delete_trash()
+        self.assertEqual(mock_get_sections.call_args[0][0], 'https://plex.local:32400')
 
     def test_delete_trash_plex_url_not_string(self):
         """Test error handling when PLEX_URL is not a string"""
