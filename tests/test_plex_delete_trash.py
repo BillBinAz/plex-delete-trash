@@ -32,7 +32,7 @@ import plex_delete_trash
 
 
 def _assert_printed_with_suffix(test_case, mock_print, expected_suffix):
-    messages = [call.args[0] for call in mock_print.call_args_list if call.args]
+    messages = [str(call.args[0]) for call in mock_print.call_args_list if call.args]
     test_case.assertTrue(
         any(message.endswith(expected_suffix) for message in messages),
         f"Expected a log ending with: {expected_suffix}. Got: {messages}",
