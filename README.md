@@ -11,6 +11,7 @@ Automatically empty trash in all Plex Media Server libraries on a scheduled basi
 - ✅ Comprehensive input validation and error handling
 - ✅ Supports both environment variables and command-line arguments
 - ✅ Lightweight Alpine Docker image
+- ✅ Prints the container image tag during startup
 
 ## How It Works
 
@@ -94,6 +95,12 @@ python plex_delete_trash.py http://plex.local:32400 your_plex_token_here
 - **Type:** Standard cron format (5 fields)
 - **Example:** `0 2 * * *` (daily at 2 AM)
 - **Reference:** https://crontab.guru/ for cron syntax help
+
+#### `PLEX_DELETE_RUN_ON_STARTUP`
+- **Description:** Runs the trash cleanup once immediately when the container starts
+- **Default:** `false`
+- **Type:** Boolean-like string (`true`/`false`, `1`/`0`, `on`/`off`, `yes`/`no`)
+- **Example:** `true` to run once before cron starts
 
 ## Validation & Error Handling
 

@@ -2,10 +2,15 @@
 FROM python:3-alpine
 LABEL authors="BillBinAz"
 
+ARG IMAGE_TAG=unknown
+
 # Install updates
 RUN apk update && apk upgrade && apk add --no-cache busybox-extras bash dos2unix ca-certificates && update-ca-certificates && rm -rf /var/cache/apk/*
 # Set the application working directory
 WORKDIR /app
+
+# Persist the build tag so the container can report it on startup.
+RUN printf '%s\n' "$IMAGE_TAG" > /app/image-version
 
 # Copy only the requirements file first to leverage Docker cache
 COPY requirements.txt .
