@@ -8,6 +8,8 @@ readonly SED_TARGET="SED-TARGET"
 readonly PLEX_IDLE_TIME_MIN_DEFAULT=5
 readonly CRON_FILE="/etc/crontabs/root"
 readonly ENV_FILE="/app/container_env.sh"
+readonly IMAGE_VERSION_FILE="/app/image-version"
+readonly RUN_ON_STARTUP_ENV_VAR="PLEX_DELETE_RUN_ON_STARTUP"
 
 # Logging function
 log() {
@@ -16,6 +18,44 @@ log() {
 
 log_error() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] ERROR: $*" >&2
+}
+
+get_image_tag() {
+    local image_tag="unknown"
+
+    if [[ -r "$IMAGE_VERSION_FILE" ]]; then
+        image_tag=$(<"$IMAGE_VERSION_FILE")
+        image_tag="${image_tag//$'\r'/}"
+        image_tag="${image_tag//$'\n'/}"
+    fi
+
+    if [[ -z "$image_tag" ]]; then
+        image_tag="unknown"
+    fi
+
+    echo "$image_tag"
+}
+
+should_run_on_startup() {
+    local run_on_startup="${!RUN_ON_STARTUP_ENV_VAR:-}"
+    run_on_startup="$(printf '%s' "$run_on_startup" | tr '[:upper:]' '[:lower:]')"
+
+    case "$run_on_startup" in
+        1|true|yes|on)
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+run_startup_job() {
+    log "Running Plex Delete Trash once on startup..."
+    if ! /usr/local/bin/python3 /app/plex_delete_trash.py; then
+        error_exit "Startup run failed"
+    fi
+    log "Startup run completed"
 }
 
 # Error handler
@@ -103,6 +143,7 @@ show_configuration() {
 # Main execution
 main() {
     log "Starting Plex-Delete-Trash entrypoint..."
+    log "Container image tag: $(get_image_tag)"
 
     # Validate configuration
     validate_config
@@ -115,6 +156,13 @@ main() {
 
     # Configure cron schedule
     configure_cron_schedule
+
+    # Run the cleanup once immediately if requested
+    if should_run_on_startup; then
+        run_startup_job
+    else
+        log "Startup run disabled; set ${RUN_ON_STARTUP_ENV_VAR}=true to enable"
+    fi
 
     # Display configuration summary
     show_configuration

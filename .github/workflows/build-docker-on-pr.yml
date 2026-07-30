@@ -118,6 +118,8 @@ jobs:
           context: .
           file: ./Dockerfile
           push: true
+          build-args: |
+            IMAGE_TAG=pr-${{ github.event.number }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha

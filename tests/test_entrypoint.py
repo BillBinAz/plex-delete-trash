@@ -49,6 +49,12 @@ class TestEntrypoint(unittest.TestCase):
         expected_default = 5
         self.assertEqual(expected_default, 5)
 
+    def test_run_on_startup_constant(self):
+        """Test RUN_ON_STARTUP_ENV_VAR constant value in entrypoint.sh"""
+        entrypoint_path = os.path.join(os.path.dirname(__file__), '..', 'src', 'entrypoint.sh')
+        with open(entrypoint_path, 'r') as f:
+            content = f.read()
+        self.assertIn('readonly RUN_ON_STARTUP_ENV_VAR="PLEX_DELETE_RUN_ON_STARTUP"', content)
     def test_cron_schedule_quote_removal_simple(self):
         """Test removing quotes from cron schedule"""
         test_cases = [
@@ -183,8 +189,10 @@ class TestEntrypoint(unittest.TestCase):
                 'CRON_REGEX',
                 'SED_TARGET',
                 'PLEX_IDLE_TIME_MIN_DEFAULT',
+                'IMAGE_VERSION_FILE',
+                'RUN_ON_STARTUP_ENV_VAR',
             ]
-            
+
             for constant in required_constants:
                 self.assertIn(constant, content, f"'{constant}' should be defined in entrypoint.sh")
 
@@ -197,6 +205,29 @@ class TestEntrypoint(unittest.TestCase):
             
             self.assertIn("PLEX_URL", content, "Should reference PLEX_URL environment variable")
             self.assertIn("Starting Plex-Delete-Trash", content, "Should have startup message")
+            self.assertIn("Container image tag", content, "Should log the container image tag on startup")
+            self.assertIn("Startup run disabled", content, "Should mention the startup run toggle")
+
+    def test_entrypoint_reads_image_version_file(self):
+        """Test that entrypoint.sh reads the baked image version file"""
+        entrypoint_path = os.path.join(os.path.dirname(__file__), '..', 'src', 'entrypoint.sh')
+        if os.path.exists(entrypoint_path):
+            with open(entrypoint_path, 'r') as f:
+                content = f.read()
+
+            self.assertIn("/app/image-version", content)
+            self.assertIn("get_image_tag", content)
+
+    def test_entrypoint_supports_startup_run_toggle(self):
+        """Test that entrypoint.sh supports running once on startup"""
+        entrypoint_path = os.path.join(os.path.dirname(__file__), '..', 'src', 'entrypoint.sh')
+        if os.path.exists(entrypoint_path):
+            with open(entrypoint_path, 'r') as f:
+                content = f.read()
+
+            self.assertIn("PLEX_DELETE_RUN_ON_STARTUP", content)
+            self.assertIn("run_startup_job", content)
+            self.assertIn("/usr/local/bin/python3 /app/plex_delete_trash.py", content)
 
 
 if __name__ == '__main__':
