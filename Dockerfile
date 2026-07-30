@@ -9,12 +9,12 @@ RUN apk update && apk upgrade && apk add --no-cache busybox-extras bash dos2unix
 # Set the application working directory
 WORKDIR /app
 
-# Persist the build tag so the container can report it on startup.
-RUN printf '%s\n' "$IMAGE_TAG" > /app/image-version
-
 # Copy only the requirements file first to leverage Docker cache
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
+
+# Persist the build tag so the container can report it on startup.
+RUN printf '%s\n' "$IMAGE_TAG" > /app/image-version
 
 # Copy the scripts
 COPY src/plex_delete_trash.py .
