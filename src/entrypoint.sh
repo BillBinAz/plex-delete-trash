@@ -120,7 +120,6 @@ configure_cron_schedule() {
             # Verify replacement was successful
             if grep -q "$schedule_to_use" "$CRON_FILE"; then
                 log "Cron schedule configured: $schedule_to_use"
-                echo "$(cat "$CRON_FILE")"
             else
                 error_exit "Failed to verify cron schedule replacement"
             fi
@@ -157,6 +156,12 @@ main() {
     # Configure cron schedule
     configure_cron_schedule
 
+    # Display configuration summary
+    show_configuration
+
+    log "Entrypoint configuration complete. Starting cron daemon..."
+    log "=========================================================="
+
     # Run the cleanup once immediately if requested
     if should_run_on_startup; then
         run_startup_job
@@ -164,11 +169,7 @@ main() {
         log "Startup run disabled; set ${RUN_ON_STARTUP_ENV_VAR}=true to enable"
     fi
 
-    # Display configuration summary
-    show_configuration
 
-    log "Entrypoint configuration complete. Starting cron daemon..."
-    log "=========================================================="
 }
 
 # Run main function

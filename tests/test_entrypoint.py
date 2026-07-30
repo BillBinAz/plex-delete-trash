@@ -229,6 +229,5 @@ class TestEntrypoint(unittest.TestCase):
             self.assertIn("run_startup_job", content)
             self.assertIn("/usr/local/bin/python3 /app/plex_delete_trash.py", content)
 
-
 if __name__ == '__main__':
     unittest.main()
