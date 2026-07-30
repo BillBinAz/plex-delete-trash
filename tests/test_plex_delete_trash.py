@@ -147,6 +147,22 @@ class TestCreateSessionWithRetries(unittest.TestCase):
             session = plex_delete_trash.create_session_with_retries()
         self.assertTrue(session.verify)
 
+    @unittest.skipUnless(importlib.util.find_spec("requests"), "requests dependency not installed")
+    def test_create_session_with_retries_disables_insecure_warning_when_verify_off(self):
+        """Test InsecureRequestWarning is suppressed when certificate verification is disabled"""
+        with patch('urllib3.disable_warnings') as mock_disable_warnings:
+            with patch.dict(os.environ, {"PLEX_DELETE_VERIFY_CERTS": "false"}):
+                plex_delete_trash.create_session_with_retries()
+        mock_disable_warnings.assert_called_once()
+
+    @unittest.skipUnless(importlib.util.find_spec("requests"), "requests dependency not installed")
+    def test_create_session_with_retries_keeps_warning_handling_default_when_verify_on(self):
+        """Test InsecureRequestWarning suppression is not changed when cert verification is enabled"""
+        with patch('urllib3.disable_warnings') as mock_disable_warnings:
+            with patch.dict(os.environ, {"PLEX_DELETE_VERIFY_CERTS": "true"}):
+                plex_delete_trash.create_session_with_retries()
+        mock_disable_warnings.assert_not_called()
+
 
 class TestSafeFloat(unittest.TestCase):
     """Test cases for safe_float function"""
@@ -368,6 +384,14 @@ class TestValidateCredentials(unittest.TestCase):
         result = plex_delete_trash._validate_credentials(
             '  "https://plex.local:32400"  ',
             "  'token123'  "
+        )
+        self.assertEqual(result, ('https://plex.local:32400', 'token123'))
+
+    def test_validate_credentials_removes_trailing_slash_from_url(self):
+        """Test validation removes trailing slash from Plex URL"""
+        result = plex_delete_trash._validate_credentials(
+            'https://plex.local:32400/',
+            'token123'
         )
         self.assertEqual(result, ('https://plex.local:32400', 'token123'))
 
@@ -635,6 +659,21 @@ class TestDeleteTrash(unittest.TestCase):
 
         with patch.dict(os.environ, {
             'PLEX_URL': '  "https://plex.local:32400"  ',
+            'PLEX_TOKEN': 'test_token'
+        }):
+            with patch('sys.argv', ['plex_delete_trash.py']):
+                with patch('plex_delete_trash.create_session_with_retries', return_value=mock_session):
+                    with patch('plex_delete_trash.get_library_sections', return_value=[]) as mock_get_sections:
+                        with patch('builtins.print'):
+                            plex_delete_trash.delete_trash()
+        self.assertEqual(mock_get_sections.call_args[0][0], 'https://plex.local:32400')
+
+    def test_delete_trash_removes_trailing_slash_from_plex_url(self):
+        """Test trailing slash in PLEX_URL is normalized before API calls"""
+        mock_session = MagicMock()
+
+        with patch.dict(os.environ, {
+            'PLEX_URL': 'https://plex.local:32400/',
             'PLEX_TOKEN': 'test_token'
         }):
             with patch('sys.argv', ['plex_delete_trash.py']):

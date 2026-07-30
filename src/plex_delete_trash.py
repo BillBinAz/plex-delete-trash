@@ -83,6 +83,8 @@ def create_session_with_retries():
     try:
         import requests
         from requests.adapters import HTTPAdapter
+        import urllib3
+        from urllib3.exceptions import InsecureRequestWarning
         from urllib3.util.retry import Retry
     except ModuleNotFoundError as e:
         raise ImportError(
@@ -101,6 +103,8 @@ def create_session_with_retries():
     session.mount("https://", adapter)
     verify_certs = os.getenv("PLEX_DELETE_VERIFY_CERTS", "true").strip().lower()
     session.verify = verify_certs not in {"0", "false", "no", "off"}
+    if not session.verify:
+        urllib3.disable_warnings(InsecureRequestWarning)
     return session
 
 
@@ -249,7 +253,9 @@ def _validate_credentials(plex_url, plex_token):
     Performs comprehensive validation including:
     - Checks that credentials are not None
     - Verifies credentials are string type
-    - Strips whitespace and matching wrapping quotes, then validates non-empty
+    - Strips whitespace and matching wrapping quotes from both values
+    - Removes trailing slash characters from plex_url
+    - Validates that normalized values are non-empty
 
     Args:
         plex_url (str): Base URL of Plex Media Server
@@ -257,7 +263,7 @@ def _validate_credentials(plex_url, plex_token):
 
     Returns:
         tuple: (plex_url, plex_token) both validated and normalized (whitespace
-            trimmed and wrapping quotes removed)
+            trimmed, wrapping quotes removed, and plex_url trailing slashes removed)
 
     Raises:
         Exception: If either credential is None, not a string, or empty/whitespace-only
@@ -267,6 +273,7 @@ def _validate_credentials(plex_url, plex_token):
     if not isinstance(plex_url, str):
         raise Exception(f"plex_url must be string, got {type(plex_url).__name__}")
     plex_url = _strip_wrapping_quotes(plex_url)
+    plex_url = plex_url.rstrip("/")
     if not plex_url:
         raise Exception("plex_url cannot be empty or whitespace")
     if not plex_token:
