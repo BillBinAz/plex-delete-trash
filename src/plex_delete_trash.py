@@ -311,7 +311,7 @@ def _process_sections(sections, plex_url, plex_token, idle_time, session):
     Note:
         - Logs warnings for invalid sections and skips them
         - Logs errors during processing but continues with other sections
-        - Prints status messages for each section processed
+        - Logs status messages for each section processed
     """
     if not sections:
         log("No library sections found on Plex server")
