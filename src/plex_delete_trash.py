@@ -249,17 +249,18 @@ def _validate_credentials(plex_url, plex_token):
     Performs comprehensive validation including:
     - Checks that credentials are not None
     - Verifies credentials are string type
-    - Strips whitespace and validates non-empty after stripping
+    - Strips whitespace and matching wrapping quotes, then validates non-empty
 
     Args:
         plex_url (str): Base URL of Plex Media Server
         plex_token (str): Plex API authentication token
 
     Returns:
-        tuple: (plex_url, plex_token) both validated and whitespace-trimmed
+        tuple: (plex_url, plex_token) both validated and normalized (whitespace
+            trimmed and wrapping quotes removed)
 
     Raises:
-        Exception: If either credential is None, not a string, or whitespace-only
+        Exception: If either credential is None, not a string, or empty/whitespace-only
     """
     if not plex_url:
         raise Exception("plex_url not set")
