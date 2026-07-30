@@ -150,10 +150,11 @@ class TestCreateSessionWithRetries(unittest.TestCase):
     @unittest.skipUnless(importlib.util.find_spec("requests"), "requests dependency not installed")
     def test_create_session_with_retries_disables_insecure_warning_when_verify_off(self):
         """Test InsecureRequestWarning is suppressed when certificate verification is disabled"""
+        from urllib3.exceptions import InsecureRequestWarning
         with patch('urllib3.disable_warnings') as mock_disable_warnings:
             with patch.dict(os.environ, {"PLEX_DELETE_VERIFY_CERTS": "false"}):
                 plex_delete_trash.create_session_with_retries()
-        mock_disable_warnings.assert_called_once()
+        mock_disable_warnings.assert_called_once_with(InsecureRequestWarning)
 
     @unittest.skipUnless(importlib.util.find_spec("requests"), "requests dependency not installed")
     def test_create_session_with_retries_keeps_warning_handling_default_when_verify_on(self):
