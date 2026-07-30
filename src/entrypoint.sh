@@ -52,7 +52,7 @@ should_run_on_startup() {
 
 run_startup_job() {
     log "Running Plex Delete Trash once on startup..."
-    if ! python /app/plex_delete_trash.py; then
+    if ! /usr/local/bin/python3 /app/plex_delete_trash.py; then
         error_exit "Startup run failed"
     fi
     log "Startup run completed"
