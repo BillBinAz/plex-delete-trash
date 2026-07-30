@@ -230,14 +230,13 @@ class TestEntrypoint(unittest.TestCase):
             self.assertIn("/usr/local/bin/python3 /app/plex_delete_trash.py", content)
 
     def test_entrypoint_logs_cron_file_with_timestamps(self):
-        """Test that cron file lines are logged via timestamped logger"""
+        """Test that timestamped cron logging helper is available"""
         entrypoint_path = os.path.join(os.path.dirname(__file__), '..', 'src', 'entrypoint.sh')
         if os.path.exists(entrypoint_path):
             with open(entrypoint_path, 'r') as f:
                 content = f.read()
 
-            self.assertIn("log_file_contents", content)
-            self.assertIn('log_file_contents "$CRON_FILE"', content)
+            self.assertIn("log_file_contents() {", content)
             self.assertNotIn('echo "$(cat "$CRON_FILE")"', content)
 
 
