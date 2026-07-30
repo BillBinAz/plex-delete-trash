@@ -20,13 +20,6 @@ log_error() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] ERROR: $*" >&2
 }
 
-log_file_contents() {
-    local file_path="$1"
-    while IFS= read -r line || [[ -n "$line" ]]; do
-        log "$line"
-    done < "$file_path"
-}
-
 get_image_tag() {
     local image_tag="unknown"
 
