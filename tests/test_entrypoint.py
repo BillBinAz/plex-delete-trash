@@ -50,10 +50,11 @@ class TestEntrypoint(unittest.TestCase):
         self.assertEqual(expected_default, 5)
 
     def test_run_on_startup_constant(self):
-        """Test startup run environment variable constant"""
-        expected_name = "PLEX_DELETE_RUN_ON_STARTUP"
-        self.assertEqual(expected_name, "PLEX_DELETE_RUN_ON_STARTUP")
-
+        """Test RUN_ON_STARTUP_ENV_VAR constant value in entrypoint.sh"""
+        entrypoint_path = os.path.join(os.path.dirname(__file__), '..', 'src', 'entrypoint.sh')
+        with open(entrypoint_path, 'r') as f:
+            content = f.read()
+        self.assertIn('readonly RUN_ON_STARTUP_ENV_VAR="PLEX_DELETE_RUN_ON_STARTUP"', content)
     def test_cron_schedule_quote_removal_simple(self):
         """Test removing quotes from cron schedule"""
         test_cases = [
