@@ -404,7 +404,7 @@ def delete_trash():
         log(f"Finished: {plex_url}")
     except Exception as e:
         # Log errors with timestamp and context
-        log("Unable to empty trash PlexURL:" + str(plex_url) + " Error: " + str(e))
+        log(f"Unable to empty trash PlexURL: {plex_url} Error: {e}")
     return
 
 
